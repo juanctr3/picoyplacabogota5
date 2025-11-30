@@ -1,0 +1,472 @@
+/* styles.css v13.1 - FIX: Mostrar descripción en móvil */
+
+:root {
+    /* Gradiente Home (Día) */
+    --bg-home-start: #84fab0;
+    --bg-home-end: #8fd3f4;
+    
+    /* Gradiente Búsqueda (Noche/Invertido) */
+    --bg-search-start: #2c3e50;
+    --bg-search-end: #4ca1af;
+
+    --card-bg: #ffffff;
+    --text-dark: #2d3436;
+    --primary-purple: #6c5ce7;
+    --soft-green: #55efc4;
+    --border-radius: 20px;
+    --shadow: 0 10px 20px rgba(0,0,0,0.08);
+}
+
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700;800&display=swap');
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    font-family: 'Poppins', sans-serif;
+    background-attachment: fixed;
+    color: var(--text-dark);
+    padding-bottom: 80px;
+    transition: background 0.5s ease;
+}
+
+body.home-mode { background-image: linear-gradient(180deg, var(--bg-home-start) 0%, var(--bg-home-end) 100%); }
+body.search-mode { background-image: linear-gradient(180deg, var(--bg-search-start) 0%, var(--bg-search-end) 100%); }
+
+/* Header */
+.app-header { text-align: center; padding: 40px 20px 20px; color: white; text-shadow: 0 2px 4px rgba(0,0,0,0.2); }
+.car-icon { font-size: 3em; display: block; margin-bottom: 10px; }
+.app-title { font-size: 1.8em; font-weight: 800; line-height: 1.2; margin-bottom: 5px; }
+.app-subtitle { font-size: 0.9em; font-weight: 400; opacity: 0.9; }
+
+/* Container - Mobile First */
+.app-container { 
+    width: 95%; max-width: 500px; margin: 0 auto; 
+    display: flex; flex-direction: column; gap: 20px; 
+}
+
+/* --- DESKTOP LAYOUT (3 COLUMNAS) --- */
+@media (min-width: 1024px) {
+    .app-container {
+        max-width: 1200px; /* Ancho completo */
+        display: grid;
+        grid-template-columns: 1fr 1.2fr 1fr; /* Centro más ancho */
+        gap: 25px;
+        align-items: start; /* Alinear arriba */
+        grid-template-areas:
+            "search  status  details"
+            "cities  festivo calc"
+            "info    stats   calendar";
+    }
+    
+    /* Asignar áreas */
+    .area-search { grid-area: search; }
+    .area-status { grid-area: status; }
+    .area-details { grid-area: details; }
+    .area-cities { grid-area: cities; }
+    .area-festivo { grid-area: festivo; }
+    .area-calc { grid-area: calc; }
+    .area-info { grid-area: info; }
+    .area-stats { grid-area: stats; }
+    .area-calendar { grid-area: calendar; }
+    
+    /* Ajustes específicos Desktop */
+    .app-title { font-size: 2.5em; }
+    .city-tags-grid { justify-content: flex-start; }
+}
+
+/* Cards */
+.card-dashboard { background: var(--card-bg); border-radius: var(--border-radius); padding: 20px; box-shadow: var(--shadow); }
+.card-dashboard h3 { font-size: 1.2em; margin-bottom: 15px; font-weight: 700; }
+
+/* Forms */
+.search-form-grid { display: flex; gap: 10px; flex-wrap: wrap; }
+.input-wrapper { flex: 1; min-width: 130px; }
+.full-width { width: 100%; }
+.app-input, .app-select { width: 100%; padding: 12px; border-radius: 10px; border: 2px solid #eee; background: #f9f9f9; font-family: inherit; font-weight: 600; color: #555; }
+.btn-app-primary { background: var(--primary-purple); color: white; border: none; padding: 12px 20px; border-radius: 10px; font-weight: 700; cursor: pointer; width: 100%; }
+.btn-app-secondary { background: #fff; border: 2px solid var(--primary-purple); color: var(--primary-purple); border-radius: 10px; font-weight: 700; cursor: pointer; }
+
+/* Calculadora Fix */
+.calc-form { display: flex; flex-direction: column; gap: 8px; }
+.calc-row { display: flex; gap: 10px; }
+.placa-label { font-size: 0.9em; font-weight: bold; }
+.big-input { 
+    width: 80px !important; flex: none !important; 
+    text-align: center; font-size: 1.5em; font-weight: bold;
+    color: var(--primary-purple); padding: 5px; height: 60px;
+}
+
+/* Botón Calendario Llamativo */
+.btn-app-flashy {
+    background: #6c5ce7; color: white; 
+    border: none; padding: 15px 30px; border-radius: 50px; 
+    font-weight: 800; font-size: 1.1em; cursor: pointer;
+    box-shadow: 0 5px 15px rgba(108, 92, 231, 0.4);
+    transition: transform 0.2s; width: 100%; max-width: 300px;
+}
+.btn-app-flashy:hover { transform: translateY(-2px); }
+
+/* Otros */
+.purple-gradient { background: linear-gradient(135deg, #6c5ce7 0%, #a29bfe 100%); color: white; }
+.quick-stats-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+.stat-card { border-radius: 15px; padding: 15px 5px; text-align: center; display: flex; flex-direction: column; justify-content: center; min-height: 110px; }
+.stat-value { font-weight: 700; line-height: 1.2; }
+.big-text { font-size: 1.4em; } .small-text { font-size: 0.8em; }
+
+.status-card { text-align: center; padding: 30px 20px; }
+.status-header { margin-bottom: 20px; font-size: 1.2em; font-weight: 800; }
+.timer-container { display: flex; justify-content: center; gap: 5px; }
+.time-box { background: #00b894; color: white; padding: 10px; border-radius: 12px; width: 75px; display: flex; flex-direction: column; align-items: center; }
+.time-box span { font-size: 2em; font-weight: 700; line-height: 1; }
+.time-box small { font-size: 0.6em; font-weight: 600; }
+.time-sep { font-size: 2em; color: #00b894; font-weight: 700; margin-top: -15px; }
+
+.city-tags-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.city-tag { background: white; border: 1px solid #eee; padding: 10px 15px; border-radius: 12px; text-decoration: none; color: var(--text-dark); font-weight: 600; font-size: 0.9em; flex: 1 0 auto; text-align: center; }
+.city-tag.active { background: var(--primary-purple); color: white; border-color: var(--primary-purple); }
+
+.circles-container { display: flex; gap: 8px; flex-wrap: wrap; }
+.plate-circle { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; color: white; font-weight: 700; font-size: 1.1em; }
+.plate-circle.pink { background: #ff9ff3; } .plate-circle.green { background: #55efc4; }
+
+.calendario-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-top: 15px; }
+.calendario-item { background: #f9f9f9; padding: 10px; border-radius: 10px; font-size: 0.8em; border-left: 4px solid #ccc; }
+.dia-libre { border-left-color: #00b894; background: #eafff5; }
+.dia-restriccion { border-left-color: #d63031; background: #fff5f5; }
+
+.info-footer-card { color: white; }
+.info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; font-size: 0.85em; }
+.app-footer { text-align: center; font-size: 0.8em; color: white; margin-top: 30px; opacity: 0.8; }
+.festivo-alert-card { background: #fff8e1; color: #e67e22; padding: 15px; border-radius: 15px; text-align: center; border: 2px solid #ffe082; font-size: 0.9em; margin-bottom: 10px; }
+
+
+/* Estilos Botón Mañana (SEO Estrategia) */
+.nav-tomorrow-wrapper {
+    text-align: center;
+    margin: -10px auto 20px; 
+    padding: 0 15px;
+}
+
+.btn-tomorrow-float {
+    display: inline-block;
+    background: linear-gradient(45deg, #ff9f43, #ee5253);
+    color: white;
+    text-decoration: none;
+    padding: 12px 25px;
+    border-radius: 50px;
+    font-weight: 700;
+    font-size: 1rem;
+    box-shadow: 0 4px 15px rgba(238, 82, 83, 0.4);
+    transition: transform 0.2s, box-shadow 0.2s;
+    border: 2px solid rgba(255,255,255,0.3);
+}
+
+.btn-tomorrow-float:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(238, 82, 83, 0.6);
+}
+
+.btn-tomorrow-float strong {
+    text-transform: uppercase;
+    font-weight: 900;
+}
+/* Estilos Acordeón SEO */
+.seo-accordion-wrapper {
+    grid-area: seo; 
+    margin-bottom: 20px;
+}
+
+.seo-details {
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+    overflow: hidden;
+    border: 1px solid #eee;
+    transition: all 0.3s ease;
+}
+
+.seo-summary {
+    padding: 15px 20px;
+    cursor: pointer;
+    list-style: none; 
+    font-weight: 600;
+    color: #2d3436;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #fdfdfd;
+}
+
+.seo-summary::-webkit-details-marker { display: none; } 
+
+.seo-content {
+    padding: 20px;
+    border-top: 1px solid #eee;
+    font-size: 0.9em;
+    line-height: 1.6;
+    color: #636e72;
+    background: #fff;
+}
+
+.seo-content p { margin-bottom: 10px; }
+.seo-content ul { margin-left: 20px; list-style-type: disc; }
+.seo-content li { margin-bottom: 5px; }
+
+/* Animación flechita */
+.seo-details[open] .icon-toggle { transform: rotate(180deg); }
+.icon-toggle { transition: transform 0.3s ease; font-size: 0.8em; opacity: 0.6; }
+
+/* Ajuste Grid Desktop para incluir SEO */
+@media (min-width: 1024px) {
+    .app-container {
+        grid-template-areas:
+            "search  status  details"
+            "cities  festivo calc"
+            "seo     seo     seo" 
+            "info    stats   calendar";
+    }
+    .seo-accordion-wrapper { max-width: 100%; }
+}
+/* --- BARRA FLOTANTE DE COMPARTIR (V13.0) --- */
+.share-floating-bar {
+    position: fixed;
+    bottom: 25px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 15px;
+    z-index: 999;
+    background: rgba(255, 255, 255, 0.85);
+    padding: 10px 25px;
+    border-radius: 50px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+    backdrop-filter: blur(8px); 
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    transition: bottom 0.3s ease;
+}
+
+.btn-icon-share {
+    width: 45px;
+    height: 45px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    text-decoration: none;
+    transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+}
+
+.btn-icon-share:hover { transform: translateY(-5px) scale(1.1); }
+/* Corrección de tamaño SVG */
+.btn-icon-share svg {
+    width: 24px !important;  
+    height: 24px !important;
+    fill: white;
+    display: block; 
+    max-width: 24px; 
+}
+
+/* Asegurar contenedor de la barra */
+.share-floating-bar {
+    max-width: 90%; 
+}
+
+/* Colores de Marca */
+.bg-whatsapp { background: linear-gradient(135deg, #25D366, #128C7E); }
+.bg-facebook { background: linear-gradient(135deg, #1877F2, #0d5cb8); }
+.bg-x { background: linear-gradient(135deg, #000000, #444444); }
+
+/* Etiqueta flotante "Compartir" (Opcional, para que se entienda) */
+.share-label {
+    position: absolute;
+    top: -25px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #2d3436;
+    color: white;
+    font-size: 0.7em;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: bold;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+}
+.share-floating-bar:hover .share-label { opacity: 1; }
+/* --- AVISO DE INSTALACIÓN DE APP (PWA) --- */
+#install-wrapper {
+    position: fixed;
+    bottom: 20px; 
+    left: 20px;
+    right: 20px;
+    z-index: 1000; 
+    display: none; 
+    justify-content: center;
+}
+
+.install-toast {
+    background: #2d3436;
+    color: white;
+    padding: 15px 20px;
+    border-radius: 12px;
+    box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    max-width: 400px;
+    border: 1px solid rgba(255,255,255,0.1);
+    animation: slideUp 0.5s ease-out;
+}
+
+@keyframes slideUp {
+    from { transform: translateY(100px); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+}
+
+.btn-install-action {
+    background: #00b894;
+    color: white;
+    border: none;
+    padding: 8px 15px;
+    border-radius: 20px;
+    font-weight: bold;
+    font-size: 0.9em;
+    cursor: pointer;
+    margin-right: 10px;
+}
+
+.btn-close-install {
+    background: transparent;
+    border: none;
+    color: #b2bec3;
+    font-size: 1.2em;
+    cursor: pointer;
+    padding: 0 5px;
+}
+
+/* --- SISTEMA DE BANNERS FLOTANTES (V1.0 AdSystem) --- */
+.floating-ad-banner {
+    position: fixed;
+    left: 0;
+    width: 100%;
+    background: white;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+    z-index: 2000;
+    transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s;
+    display: flex;
+    justify-content: center;
+    text-decoration: none; 
+    color: var(--text-dark);
+}
+
+/* Posición TOP (Aparece desde arriba) */
+.ad-top {
+    top: 0;
+    transform: translateY(-100%); 
+    border-bottom: 3px solid #00b894;
+}
+
+/* Posición BOTTOM (Aparece desde abajo) */
+.ad-bottom {
+    bottom: 0;
+    transform: translateY(100%); 
+    border-top: 3px solid #6c5ce7;
+}
+
+/* Estado VISIBLE */
+.floating-ad-banner.show {
+    transform: translateY(0);
+}
+
+.ad-content {
+    display: flex;
+    align-items: center;
+    padding: 10px 20px;
+    width: 100%;
+    max-width: 600px;
+    gap: 15px;
+    position: relative;
+}
+
+/* Logo */
+.ad-logo-wrapper {
+    flex: 0 0 45px;
+    height: 45px;
+    border-radius: 50%;
+    overflow: hidden;
+    border: 2px solid #f1f2f6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+}
+.ad-logo { width: 100%; height: 100%; object-fit: cover; }
+
+/* Texto */
+.ad-text-group { flex: 1; text-align: left; }
+.ad-title { font-weight: 700; color: #2d3436; font-size: 0.95rem; margin-bottom: 0px; display: block; line-height: 1.2; }
+.ad-desc { font-size: 0.75rem; color: #636e72; line-height: 1.2; display: block; }
+
+/* Botón de Llamada a la Acción (CTA) */
+.ad-cta-btn {
+    background: linear-gradient(45deg, #ff9f43, #ee5253);
+    color: white;
+    text-decoration: none;
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.7rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    display: inline-block;
+    box-shadow: 0 2px 5px rgba(238, 82, 83, 0.4);
+    margin-left: 10px;
+    flex-shrink: 0;
+}
+
+/* Botón Cerrar (X) */
+.ad-close-btn {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    background: none;
+    border: none;
+    font-size: 1.2rem;
+    color: #b2bec3;
+    cursor: pointer;
+    line-height: 1;
+    padding: 0;
+    z-index: 2010; 
+}
+
+/* Botón "Anuncie Aquí" */
+.ad-anuncie-btn {
+    position: absolute;
+    bottom: 5px;
+    right: 35px;
+    font-size: 0.6rem;
+    color: #6c5ce7;
+    text-decoration: underline;
+    font-weight: 600;
+    z-index: 2010;
+}
+
+/* Etiqueta mini "Anuncio" */
+.ad-tag-mini {
+    position: absolute;
+    top: 2px;
+    right: 35px;
+    font-size: 0.6rem;
+    color: #dfe6e9;
+    background: #636e72;
+    padding: 1px 3px;
+    border-radius: 2px;
+}
+
+/* Optimización para móviles (FIX: ad-desc ahora visible) */
+@media (max-width: 450px) {
+    /* Eliminamos la regla display: none; para .ad-desc */
+    .ad-anuncie-btn, .ad-tag-mini { right: 30px; font-size: 0.6rem; }
+}
