@@ -1,0 +1,4 @@
+AuthType Basic
+AuthName "Acceso Restringido al Panel Admin"
+AuthUserFile /home/picoyplacabogota/.htpasswd 
+Require valid-user
