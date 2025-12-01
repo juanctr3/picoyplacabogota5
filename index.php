@@ -357,71 +357,9 @@ for ($i = 0; $i < 30; $i++) {
     }
     </script>
 </head>
-<body class="<?= $body_class_mode ?>">
+<body class="<?= $body_class_mode ?>" data-city-slug="<?= $ciudad_busqueda ?>">
 
-    <?php
-    // 1. Verificar si el motor existe antes de llamarlo
-    if (file_exists('gestor_ads.php')) {
-        include_once 'gestor_ads.php';
-        
-        // 2. Verificar si la función existe
-        if (function_exists('obtenerAnuncioRotativo')) {
-            $ad_data = obtenerAnuncioRotativo($ciudad_busqueda);
-            
-            if ($ad_data): 
-                $track_link = "gestor_ads.php?action=click&id=" . ($ad_data['id_interno'] ?? '');
-    ?>
-    <div id="top-ad-banner">
-        <div class="ad-content">
-            <button class="ad-close-btn" onclick="cerrarAnuncio()">×</button>
-            
-            <?php if(!empty($ad_data['imagen'])): ?>
-            <div class="ad-logo-wrapper">
-                <img src="<?= $ad_data['imagen'] ?>" alt="Ad" class="ad-logo">
-            </div>
-            <?php endif; ?>
-
-            <div class="ad-text-group">
-                <span class="ad-title"><?= htmlspecialchars($ad_data['titulo']) ?></span>
-                <span class="ad-desc"><?= htmlspecialchars($ad_data['texto']) ?></span>
-                <a href="<?= $track_link ?>" class="ad-cta-btn" target="_blank"><?= htmlspecialchars($ad_data['btn_texto']) ?></a>
-            </div>
-            
-            <span class="ad-tag-mini">Anuncio</span>
-        </div>
-    </div>
-
-    <script>
-        document.addEventListener("DOMContentLoaded", function() {
-            const banner = document.getElementById('top-ad-banner');
-            const waitTime = <?= (int)$ad_data['segundos_espera'] * 1000 ?>;
-            const duration = <?= (int)$ad_data['duracion_visible'] * 1000 ?>;
-            const adId = "<?= $ad_data['id_interno'] ?? '' ?>";
-            
-            setTimeout(() => {
-                if(banner) {
-                    banner.classList.add('show');
-                    // Contar impresión
-                    fetch('gestor_ads.php?action=track_view&id=' + adId);
-                    
-                    if(duration > 0) {
-                        setTimeout(() => {
-                            banner.classList.remove('show');
-                        }, duration);
-                    }
-                }
-            }, waitTime);
-        });
-
-        function cerrarAnuncio() {
-            document.getElementById('top-ad-banner').classList.remove('show');
-        }
-    </script>
-    <?php 
-            endif; // Fin if $ad_data
-        } // Fin if function_exists
-    } // Fin if file_exists
-    ?>
+    <script src="/ads/client.js?v=2.0"></script>
 
     <div id="install-wrapper">
         <div id="android-prompt" class="install-toast" style="display:none">
