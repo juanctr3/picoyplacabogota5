@@ -1,13 +1,12 @@
 <?php
 /**
- * ads/server.php - Módulo de Servidor de Anuncios SaaS (Priorización por Oferta)
- * Calcula la Prioridad Dinámica (Bid Priority) y filtra por saldo y aprobación.
+ * ads/server.php - Servidor de Anuncios (Rotación Ponderada)
+ * Muestra todos los anuncios activos, priorizando los de mayor oferta (CPC/CPM).
  */
 
 header('Access-Control-Allow-Origin: *'); 
 header('Content-Type: application/json');
 
-// 1. CONFIGURACIÓN DE LA BASE DE DATOS
 $dbHost = 'localhost';
 $dbName = 'picoyplacabogota';   
 $dbUser = 'picoyplacabogota';   
@@ -19,76 +18,83 @@ try {
 
     $city_slug = $_GET['ciudad'] ?? '';
 
-    // 2. CONSULTA A LA BD CON PRIORIZACIÓN DINÁMICA POR OFERTA
-    // Priorización: Se calcula el valor de la oferta (offer_cpc * 1000 + offer_cpm * 0.1)
+    // 1. OBTENER TODOS LOS CANDIDATOS ACTIVOS (Sin LIMIT 1)
+    // Calculamos el "peso" (score) basado en la oferta.
     $stmt = $pdo->prepare("
         SELECT 
             b.*, u.account_balance,
             COALESCE(SUM(CASE WHEN be.event_type = 'impresion' THEN 1 ELSE 0 END), 0) AS impresiones_actuales,
             COALESCE(SUM(CASE WHEN be.event_type = 'click' THEN 1 ELSE 0 END), 0) AS clicks_actuales,
-            -- Cálculo de Prioridad Dinámica (Bid Priority): El que más paga primero
-            (b.offer_cpc * 1000 + b.offer_cpm * 0.1) AS bid_priority 
+            -- Algoritmo de Peso: (CPC * 1000) + (CPM). Ejemplo: CPC $200 COP pesa más que CPM $5000 COP.
+            ((b.offer_cpc * 1000) + b.offer_cpm) AS rotation_weight 
         FROM banners b
         JOIN users u ON b.user_id = u.id
         LEFT JOIN banner_events be ON b.id = be.banner_id
         WHERE 
             FIND_IN_SET(:city_slug, b.city_slugs) 
             AND b.is_active = TRUE
-            AND b.is_approved = TRUE -- Solo banners aprobados
-            AND u.account_balance > 0 -- Saldo debe ser positivo
-        GROUP BY b.id, b.titulo, u.account_balance, b.offer_cpc, b.offer_cpm 
-        ORDER BY 
-            bid_priority DESC, -- 1. El que más paga primero
-            LENGTH(b.city_slugs) ASC, -- 2. Desempate: Más específico
-            b.id ASC 
-        LIMIT 1
+            AND b.is_approved = TRUE
+            AND u.account_balance > 50 -- Mínimo saldo para rodar (50 pesos)
+        GROUP BY b.id
+        HAVING 
+            impresiones_actuales < b.max_impresiones 
+            AND clicks_actuales < b.max_clicks
     ");
 
     $stmt->execute([':city_slug' => $city_slug]);
-    $active_banner = $stmt->fetch(PDO::FETCH_ASSOC);
+    $candidates = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-    if ($active_banner) {
-        $banner_id = (int)$active_banner['id'];
-        
-        // 3. APLICAR LÓGICA DE LÍMITES Y DESACTIVACIÓN AUTOMÁTICA
-        if (
-            (int)$active_banner['impresiones_actuales'] >= (int)$active_banner['max_impresiones'] ||
-            (int)$active_banner['clicks_actuales'] >= (int)$active_banner['max_clicks']
-        ) {
-            
-            // Si el límite se excede, DESACTIVAMOS el banner
-            $update_stmt = $pdo->prepare("UPDATE banners SET is_active = FALSE WHERE id = :id");
-            $update_stmt->execute([':id' => $banner_id]);
-
-            error_log("Campaña ID: {$banner_id} DESACTIVADA automáticamente. Límites excedidos.");
-            echo json_encode(['success' => false, 'message' => 'Campaña finalizada.']);
-
-        } else {
-            // 4. RETORNO EXITOSO
-            echo json_encode([
-                'success' => true,
-                'banner' => [
-                    'id' => $active_banner['id'],
-                    'titulo' => $active_banner['titulo'],
-                    'descripcion' => $active_banner['descripcion'],
-                    'logo_url' => $active_banner['logo_url'],
-                    'cta_url' => $active_banner['cta_url'],
-                    'posicion' => $active_banner['posicion'],
-                    'tiempo_muestra' => (int)$active_banner['tiempo_muestra'],
-                    'frecuencia_factor' => (int)$active_banner['frecuencia_factor'],
-                    // Pasar la oferta para que el log.php sepa cuánto cobrar
-                    'offer_cpc' => (float)$active_banner['offer_cpc'], 
-                    'offer_cpm' => (float)$active_banner['offer_cpm']
-                ]
-            ]);
-        }
-    } else {
-        echo json_encode(['success' => false, 'message' => 'No hay banners activos para esta ciudad.']);
+    if (empty($candidates)) {
+        echo json_encode(['success' => false, 'message' => 'No hay anuncios disponibles.']);
+        exit;
     }
 
+    // 2. ALGORITMO DE RULETA PONDERADA (Weighted Random)
+    $totalWeight = 0;
+    foreach ($candidates as $row) {
+        // Asegurar que el peso sea al menos 1 para que todos tengan oportunidad
+        $weight = max(1, (float)$row['rotation_weight']);
+        $totalWeight += $weight;
+    }
+
+    $random = (float)rand() / (float)getrandmax() * $totalWeight;
+    $selected_banner = null;
+
+    foreach ($candidates as $row) {
+        $weight = max(1, (float)$row['rotation_weight']);
+        $random -= $weight;
+        if ($random <= 0) {
+            $selected_banner = $row;
+            break;
+        }
+    }
+    
+    // Fallback por si acaso
+    if (!$selected_banner) {
+        $selected_banner = $candidates[0];
+    }
+
+    // 3. RETORNO EXITOSO
+    echo json_encode([
+        'success' => true,
+        'banner' => [
+            'id' => $selected_banner['id'],
+            'titulo' => $selected_banner['titulo'],
+            'descripcion' => $selected_banner['descripcion'],
+            'logo_url' => $selected_banner['logo_url'],
+            'cta_url' => $selected_banner['cta_url'],
+            'posicion' => $selected_banner['posicion'],
+            'tiempo_muestra' => (int)$selected_banner['tiempo_muestra'],
+            'offer_cpc' => (float)$selected_banner['offer_cpc'], 
+            'offer_cpm' => (float)$selected_banner['offer_cpm'],
+            // Pasamos la configuración de frecuencia al frontend
+            'freq_max' => (int)($selected_banner['freq_max_views'] ?? 3),
+            'freq_hours' => (int)($selected_banner['freq_reset_hours'] ?? 6)
+        ]
+    ]);
+
 } catch (PDOException $e) {
-    error_log("Error en el servidor de anuncios: " . $e->getMessage());
-    http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Error de servidor.']);
+    error_log("Error Server Ads: " . $e->getMessage());
+    echo json_encode(['success' => false, 'message' => 'Error interno.']);
 }
 ?>
