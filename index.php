@@ -1,10 +1,12 @@
 <?php
 /**
  * index.php
- * Versión 12.0 Final - SEO Estratégico:
- * - Soporte para URL "Mañana" (Evergreen Content).
- * - Inyección de Schema.org JSON-LD.
- * - Botón de navegación rápida.
+ * Versión 14.0 - All-in-One:
+ * - Auto-generación de Sitemap (Cron Silencioso).
+ * - Soporte URL "Mañana" (Evergreen).
+ * - Schema JSON-LD.
+ * - Botón App Flotante (PWA).
+ * - Botones Compartir SVG.
  */
 
 // 1. Configuración inicial
@@ -16,7 +18,67 @@ ini_set('display_errors', 0);
 require_once 'config-ciudades.php';
 require_once 'clases/PicoYPlaca.php';
 
+// --- 1.1 AUTO-GENERADOR DE SITEMAP (Lógica Diaria) ---
+// Se ejecuta solo si el sitemap no existe o es de una fecha anterior a hoy.
+$sitemapFile = __DIR__ . '/sitemap.xml';
+if (!file_exists($sitemapFile) || date('Y-m-d', filemtime($sitemapFile)) !== date('Y-m-d')) {
+    // Datos necesarios
+    $BASE_URL_SM = 'https://picoyplacabogota.com.co'; 
+    $DIAS_SM = 30;
+    $MESES_SM = ['01'=>'enero','02'=>'febrero','03'=>'marzo','04'=>'abril','05'=>'mayo','06'=>'junio','07'=>'julio','08'=>'agosto','09'=>'septiembre','10'=>'octubre','11'=>'noviembre','12'=>'diciembre'];
+    
+    $xml = '<?xml version="1.0" encoding="UTF-8"?>' . "\n";
+    $xml .= '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n";
+    
+    // Home
+    $hoy_sm = date('Y-m-d');
+    $xml .= "  <url><loc>{$BASE_URL_SM}/</loc><lastmod>{$hoy_sm}</lastmod><changefreq>daily</changefreq><priority>1.0</priority></url>\n";
+    
+    // 1. URLs Evergreen ("Mañana") - Prioridad Alta
+    // Usamos una copia de ciudades para no afectar la variable global si se modifica
+    $ciudades_sm = $ciudades; 
+    if(isset($ciudades_sm['rotaciones_base'])) unset($ciudades_sm['rotaciones_base']);
 
+    foreach ($ciudades_sm as $c_slug => $c_data) {
+        foreach ($c_data['tipos'] as $t_slug => $t_data) {
+            $xml .= "  <url>\n";
+            $xml .= "    <loc>{$BASE_URL_SM}/pico-y-placa/{$c_slug}/manana/{$t_slug}</loc>\n";
+            $xml .= "    <lastmod>{$hoy_sm}</lastmod>\n";
+            $xml .= "    <changefreq>daily</changefreq>\n";
+            $xml .= "    <priority>1.0</priority>\n";
+            $xml .= "  </url>\n";
+        }
+    }
+
+    // 2. URLs Fechas Específicas (Próximos 30 días)
+    $now_sm = new DateTime();
+    for ($i = 0; $i < $DIAS_SM; $i++) {
+        $curDate = clone $now_sm;
+        $curDate->modify("+$i day");
+        $d_sm = (int)$curDate->format('d');
+        $m_num_sm = $curDate->format('m');
+        $y_sm = $curDate->format('Y');
+        $slug_fecha = sprintf('%d-de-%s-de-%s', $d_sm, $MESES_SM[$m_num_sm], $y_sm);
+
+        foreach ($ciudades_sm as $c_slug => $c_data) {
+            foreach ($c_data['tipos'] as $t_slug => $t_data) {
+                $prio = number_format(max(0.5, 0.9 - ($i / ($DIAS_SM * 2))), 2, '.', '');
+                $loc = "{$BASE_URL_SM}/pico-y-placa/{$c_slug}-{$slug_fecha}/{$t_slug}";
+                
+                $xml .= "  <url>\n";
+                $xml .= "    <loc>{$loc}</loc>\n";
+                $xml .= "    <lastmod>{$hoy_sm}</lastmod>\n";
+                $xml .= "    <changefreq>daily</changefreq>\n";
+                $xml .= "    <priority>{$prio}</priority>\n";
+                $xml .= "  </url>\n";
+            }
+        }
+    }
+    $xml .= '</urlset>';
+    file_put_contents($sitemapFile, $xml); // Guardar silenciosamente
+}
+
+// --- FIN AUTO-GENERADOR ---
 
 $picoYPlaca = new PicoYPlaca();
 if(isset($ciudades['rotaciones_base'])) unset($ciudades['rotaciones_base']);
@@ -49,18 +111,15 @@ if ($es_manana) {
     $es_busqueda = true;
     $fecha_busqueda = date('Y-m-d', strtotime('+1 day'));
     
-    // Validar existencia de ciudad/tipo, si no existen usar defaults
     if (!array_key_exists($ciudad_busqueda, $ciudades)) $ciudad_busqueda = $DEFAULT_CIUDAD_URL;
     if (!isset($ciudades[$ciudad_busqueda]['tipos'][$tipo_busqueda])) $tipo_busqueda = 'particulares';
     
-    // Canonical forzada para "mañana" para que Google indexe esta URL preferentemente
     $canonical_url = $BASE_URL . "/pico-y-placa/$ciudad_busqueda/manana/$tipo_busqueda";
 
 } 
 // Caso B: URL Fecha Específica (Regex Legacy)
 elseif (isset($_SERVER['REQUEST_URI']) && strpos($_SERVER['REQUEST_URI'], '/pico-y-placa/') === 0) {
     $slug = explode('/', trim($request_uri_clean, '/'))[1] ?? '';
-    // Regex para detectar formato fecha: bogota-25-de-noviembre-de-2025
     if (preg_match('/^([a-z-]+)-(\d{1,2})-de-([a-z]+)-de-(\d{4})$/', $slug, $m)) {
         $mes_num = array_search($m[3], $MESES);
         if ($mes_num) {
@@ -75,14 +134,13 @@ elseif (isset($_SERVER['REQUEST_URI']) && strpos($_SERVER['REQUEST_URI'], '/pico
     }
 }
 
-// Resetear a hoy si no hay búsqueda válida
 if (!$es_busqueda && !$es_manana) {
     if ($fecha_busqueda === $HOY && $ciudad_busqueda === $DEFAULT_CIUDAD_URL && $tipo_busqueda === $DEFAULT_TIPO_URL) {
         $es_busqueda = false;
     }
 }
 
-// Consulta Principal al Motor
+// Consulta Principal
 $resultados = $picoYPlaca->obtenerRestriccion($ciudad_busqueda, $fecha_busqueda, $tipo_busqueda);
 $nombre_festivo = $resultados['festivo'] ?? null;
 
@@ -100,38 +158,32 @@ $anio       = $dt->format('Y');
 $fecha_texto = "$dia_nombre, $dia_num de $mes_nombre de $anio";
 $fecha_seo_corta = "$dia_nombre $dia_num $mes_corto $anio"; 
 
-// Palabras clave base
 $keywords_array = [
     "pico y placa", "pico y placa $nombre_ciudad", 
-    "pico y placa mañana $nombre_ciudad", // Keyword objetivo
+    "pico y placa mañana $nombre_ciudad", 
     "restricción vehicular $nombre_ciudad",
     "pico y placa $nombre_ciudad $nombre_tipo"
 ];
 $meta_keywords = implode(", ", $keywords_array);
 
-// Títulos Inteligentes según intención
 if ($es_manana) {
-    // Intención: Mañana
     $titulo_h1_largo = "Pico y Placa MAÑANA en $nombre_ciudad";
     $page_title = "Pico y Placa MAÑANA en $nombre_ciudad ($fecha_seo_corta) | $nombre_tipo";
     $meta_description = "⚠️ Atención: Pico y Placa MAÑANA $fecha_seo_corta en $nombre_ciudad. Placas restringidas: " . implode('-', $resultados['restricciones']) . ". Horario: " . $resultados['horario'] . ". Evita multas.";
 } elseif ($fecha_busqueda === $HOY) {
-    // Intención: Hoy
     $titulo_h1_largo = "Pico y Placa HOY en $nombre_ciudad";
     $page_title = "Pico y Placa HOY en $nombre_ciudad $fecha_seo_corta | $nombre_tipo";
     $estado_texto = $resultados['hay_pico'] ? "TIENE restricción" : "NO TIENE restricción";
     $meta_description = "Consulta el Pico y Placa en $nombre_ciudad para $nombre_tipo hoy $fecha_texto. Estado: $estado_texto. Horarios y mapa actualizado.";
 } else {
-    // Intención: Fecha futura específica
     $titulo_h1_largo = "Pico y Placa en $nombre_ciudad, $fecha_seo_corta";
     $page_title = "Pico y Placa en $nombre_ciudad el $fecha_seo_corta | $nombre_tipo";
     $meta_description = "Prográmate: Pico y Placa para el $fecha_texto en $nombre_ciudad. Vehículos $nombre_tipo. Verifica si tienes restricción.";
 }
 
-// --- LÓGICA DE FONDO ---
 $body_class_mode = ($es_busqueda || $es_manana) ? 'search-mode' : 'home-mode';
 
-// --- LÓGICA DE ESTADO EN TIEMPO REAL ---
+// Estado en Tiempo Real
 $es_restriccion_activa = false; 
 $ya_paso_restriccion_hoy = false; 
 
@@ -157,15 +209,13 @@ if ($resultados['hay_pico']) {
             if ($now_ts > $ultimo_fin && $ultimo_fin > 0) $ya_paso_restriccion_hoy = true;
         }
     } else {
-        // Si es futuro o mañana, marcamos como "será activa" visualmente si aplica
         $es_restriccion_activa = true;
     }
 }
 
-// --- RELOJ PREDICTIVO ---
+// Reloj
 $reloj_titulo = "FALTA PARA INICIAR:";
 $next_event_ts = 0; 
-
 if ($fecha_busqueda === $HOY) {
     $now_ts = time(); 
     $rangos_hoy = $ciudades[$ciudad_busqueda]['tipos'][$tipo_busqueda]['rangos_horarios_php'] ?? [];
@@ -185,7 +235,6 @@ if ($fecha_busqueda === $HOY) {
             }
         }
     }
-    // Si hoy no hay eventos cercanos, buscar próximo día con pico
     if ($next_event_ts == 0) {
         for ($i = 1; $i <= 15; $i++) { 
             $nd = date('Y-m-d', strtotime("$HOY +$i days"));
@@ -207,7 +256,7 @@ if ($fecha_busqueda === $HOY) {
     }
 }
 
-// --- CALCULADORA ---
+// Calculadora
 $calendario_personalizado = [];
 $placa_proyeccion = $_POST['placa_proyeccion'] ?? null; 
 $ciudad_proyeccion = $_POST['ciudad_proyeccion'] ?? $ciudad_busqueda;
@@ -230,7 +279,7 @@ if ($placa_proyeccion !== null && is_numeric($placa_proyeccion)) {
     }
 }
 
-// --- CALENDARIO GENERAL ---
+// Calendario General
 $calendario = [];
 $fecha_iter = new DateTime($HOY);
 for ($i = 0; $i < 30; $i++) {
@@ -265,24 +314,10 @@ for ($i = 0; $i < 30; $i++) {
     <meta name="theme-color" content="#84fab0">
     <meta name="mobile-web-app-capable" content="yes">
     
-     <link rel="apple-touch-icon" sizes="57x57" href="/favicons/apple-icon-57x57.png">
-<link rel="apple-touch-icon" sizes="60x60" href="/favicons/apple-icon-60x60.png">
-<link rel="apple-touch-icon" sizes="72x72" href="/favicons/apple-icon-72x72.png">
-<link rel="apple-touch-icon" sizes="76x76" href="/favicons/apple-icon-76x76.png">
-<link rel="apple-touch-icon" sizes="114x114" href="/favicons/apple-icon-114x114.png">
-<link rel="apple-touch-icon" sizes="120x120" href="/favicons/apple-icon-120x120.png">
-<link rel="apple-touch-icon" sizes="144x144" href="/favicons/apple-icon-144x144.png">
-<link rel="apple-touch-icon" sizes="152x152" href="/favicons/apple-icon-152x152.png">
-<link rel="apple-touch-icon" sizes="180x180" href="/favicons/apple-icon-180x180.png">
-<link rel="icon" type="image/png" sizes="192x192"  href="/favicons/android-icon-192x192.png">
-<link rel="icon" type="image/png" sizes="32x32" href="/favicons/favicon-32x32.png">
-<link rel="icon" type="image/png" sizes="96x96" href="/favicons/favicon-96x96.png">
-<link rel="icon" type="image/png" sizes="16x16" href="/favicons/favicon-16x16.png">
-<link rel="manifest" href="/favicons/manifest.json">
-<meta name="msapplication-TileColor" content="#ffffff">
-<meta name="msapplication-TileImage" content="/favicons/ms-icon-144x144.png">
-<meta name="theme-color" content="#ffffff">
-    <link rel="manifest" href="/favicons/manifest.json">
+    <link rel="apple-touch-icon" sizes="57x57" href="/favicons/apple-icon-57x57.png">
+    <link rel="icon" type="image/png" sizes="192x192"  href="/favicons/android-icon-192x192.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicons/favicon-32x32.png">
+    <link rel="manifest" href="/manifest.json">
     
     <link rel="stylesheet" href="/styles.css?v=12.0">
     
@@ -324,6 +359,69 @@ for ($i = 0; $i < 30; $i++) {
 </head>
 <body class="<?= $body_class_mode ?>">
 
+    <?php
+    // 1. Verificar si el motor existe antes de llamarlo
+    if (file_exists('gestor_ads.php')) {
+        include_once 'gestor_ads.php';
+        
+        // 2. Verificar si la función existe
+        if (function_exists('obtenerAnuncioRotativo')) {
+            $ad_data = obtenerAnuncioRotativo($ciudad_busqueda);
+            
+            if ($ad_data): 
+                $track_link = "gestor_ads.php?action=click&id=" . ($ad_data['id_interno'] ?? '');
+    ?>
+    <div id="top-ad-banner">
+        <div class="ad-content">
+            <button class="ad-close-btn" onclick="cerrarAnuncio()">×</button>
+            
+            <?php if(!empty($ad_data['imagen'])): ?>
+            <div class="ad-logo-wrapper">
+                <img src="<?= $ad_data['imagen'] ?>" alt="Ad" class="ad-logo">
+            </div>
+            <?php endif; ?>
+
+            <div class="ad-text-group">
+                <span class="ad-title"><?= htmlspecialchars($ad_data['titulo']) ?></span>
+                <span class="ad-desc"><?= htmlspecialchars($ad_data['texto']) ?></span>
+                <a href="<?= $track_link ?>" class="ad-cta-btn" target="_blank"><?= htmlspecialchars($ad_data['btn_texto']) ?></a>
+            </div>
+            
+            <span class="ad-tag-mini">Anuncio</span>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", function() {
+            const banner = document.getElementById('top-ad-banner');
+            const waitTime = <?= (int)$ad_data['segundos_espera'] * 1000 ?>;
+            const duration = <?= (int)$ad_data['duracion_visible'] * 1000 ?>;
+            const adId = "<?= $ad_data['id_interno'] ?? '' ?>";
+            
+            setTimeout(() => {
+                if(banner) {
+                    banner.classList.add('show');
+                    // Contar impresión
+                    fetch('gestor_ads.php?action=track_view&id=' + adId);
+                    
+                    if(duration > 0) {
+                        setTimeout(() => {
+                            banner.classList.remove('show');
+                        }, duration);
+                    }
+                }
+            }, waitTime);
+        });
+
+        function cerrarAnuncio() {
+            document.getElementById('top-ad-banner').classList.remove('show');
+        }
+    </script>
+    <?php 
+            endif; // Fin if $ad_data
+        } // Fin if function_exists
+    } // Fin if file_exists
+    ?>
 
     <div id="install-wrapper">
         <div id="android-prompt" class="install-toast" style="display:none">
@@ -347,11 +445,11 @@ for ($i = 0; $i < 30; $i++) {
         </div>
     </div>
 
-    <header class="app-header">
+   <header class="app-header">
         <div class="header-content">
             <span class="car-icon">🚗</span>
             <h1 class="app-title"><?= $titulo_h1_largo ?></h1>
-            <p class="app-subtitle">Consulta restricciones vehiculares en tiempo real</p>
+            <p class="app-subtitle">Estas viendo el pico y placa para <strong style="color:#000000; text-transform:uppercase;"><?= $nombre_tipo ?></strong> del día <?= $fecha_seo_corta ?> </p>
         </div>
     </header>
 
@@ -596,15 +694,15 @@ for ($i = 0; $i < 30; $i++) {
         <span class="share-label">Compartir</span>
         
         <a href="<?= $link_wa ?>" target="_blank" class="btn-icon-share bg-whatsapp" title="Enviar por WhatsApp">
-            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.008-.57-.008-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
+            <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.008-.57-.008-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg>
         </a>
 
         <a href="<?= $link_fb ?>" target="_blank" class="btn-icon-share bg-facebook" title="Compartir en Facebook">
-            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9.101 23.691v-7.98H6.627v-3.667h2.474v-1.58c0-4.085 1.848-5.978 5.858-5.978.401 0 .955.042 1.468.103a8.68 8.68 0 0 1 1.141.195v3.325a8.623 8.623 0 0 0-.653-.036c-2.148 0-2.971.956-2.971 3.594v.376h3.428l-.581 3.667h-2.847v7.98c3.072-.53 5.622-2.567 6.853-5.415 1.23-2.848 1.002-6.093-.613-8.723a9.825 9.825 0 0 0-5.074-4.497c-2.992-.882-6.223-.258-8.64 1.67-2.417 1.928-3.696 4.927-3.42 8.022.276 3.095 2.08 5.84 4.823 7.341 1.362.745 2.87 1.119 4.377 1.097-.444.044-.891.077-1.344.077Z"/></svg>
+            <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M9.101 23.691v-7.98H6.627v-3.667h2.474v-1.58c0-4.085 1.848-5.978 5.858-5.978.401 0 .955.042 1.468.103a8.68 8.68 0 0 1 1.141.195v3.325a8.623 8.623 0 0 0-.653-.036c-2.148 0-2.971.956-2.971 3.594v.376h3.428l-.581 3.667h-2.847v7.98c3.072-.53 5.622-2.567 6.853-5.415 1.23-2.848 1.002-6.093-.613-8.723a9.825 9.825 0 0 0-5.074-4.497c-2.992-.882-6.223-.258-8.64 1.67-2.417 1.928-3.696 4.927-3.42 8.022.276 3.095 2.08 5.84 4.823 7.341 1.362.745 2.87 1.119 4.377 1.097-.444.044-.891.077-1.344.077Z"/></svg>
         </a>
 
         <a href="<?= $link_x ?>" target="_blank" class="btn-icon-share bg-x" title="Postear en X">
-            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932ZM17.61 20.644h2.039L6.486 3.24H4.298Z"/></svg>
+            <svg width="24" height="24" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932ZM17.61 20.644h2.039L6.486 3.24H4.298Z"/></svg>
         </a>
     </div>
 
