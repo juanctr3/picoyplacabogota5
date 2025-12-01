@@ -6,7 +6,7 @@
 session_start();
 
 // --- CONFIGURA TU CONTRASEÑA AQUÍ ---
-$PASSWORD_ADMIN = 'admin123'; // <--- ¡CÁMBIALA!
+$PASSWORD_ADMIN = 'JC@002056jc'; // <--- ¡CÁMBIALA!
 
 // Lógica de Logout
 if (isset($_GET['logout'])) {
