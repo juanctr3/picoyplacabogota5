@@ -1,6 +1,7 @@
 /**
  * ads/ads.js - Módulo SaaS de Anuncios (Lógica Central)
  * Responsable de la priorización, cobro y visualización en el frontend.
+ * CORREGIDO: Solución a clicks dobles y estandarización de eventos.
  */
 
 document.addEventListener('DOMContentLoaded', initAdSystemLoader);
@@ -68,12 +69,9 @@ function renderBanner(banner) {
         localStorage.setItem(BANNER_LAPSE_KEY, new Date().getTime()); // Siguiente banner en 60s
     });
 
-    // 2. Registro de Click (Cobro CPC)
-    adBanner.addEventListener('mousedown', () => { 
-        // Envía el evento de click junto con los valores de oferta del banner
-        registrar_evento(banner.id, 'click', banner.offer_cpc, banner.offer_cpm); 
-    });
-    adBanner.addEventListener('touchstart', () => { 
+    // 2. Registro de Click (Cobro CPC) - CORREGIDO
+    // Usamos 'click' estándar para evitar duplicados en móviles (touchstart + mousedown)
+    adBanner.addEventListener('click', () => { 
         registrar_evento(banner.id, 'click', banner.offer_cpc, banner.offer_cpm); 
     });
     
@@ -81,6 +79,7 @@ function renderBanner(banner) {
     setTimeout(() => {
         adBanner.classList.add('show');
         // Registro de impresión (Cobro CPM / 1000)
+        // Se envía 'impresion' (español) para coincidir con la BD y log.php
         registrar_evento(banner.id, 'impresion', banner.offer_cpc, banner.offer_cpm); 
 
         // 4. Ocultar después de la duración
