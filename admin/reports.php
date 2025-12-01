@@ -27,7 +27,7 @@ try {
             b.max_clicks,
             b.offer_cpc,
             b.offer_cpm,
-            COALESCE(SUM(CASE WHEN be.event_type = 'impression' THEN 1 ELSE 0 END), 0) AS total_impresiones,
+            COALESCE(SUM(CASE WHEN be.event_type = 'impresion' THEN 1 ELSE 0 END), 0) AS total_impresiones,
             COALESCE(SUM(CASE WHEN be.event_type = 'click' THEN 1 ELSE 0 END), 0) AS total_clicks
         FROM banners b
         LEFT JOIN banner_events be ON b.id = be.banner_id
