@@ -17,7 +17,7 @@ $userId = $_SESSION['user_id'];
 // ----------------------------------------------------------------------
 // RUTA DE CARGA DE ARCHIVOS Y DECLARACIÓN GLOBAL DE CIUDADES (FIX)
 // ----------------------------------------------------------------------
-$UPLOAD_DIR = '../uploads/banners/'; // Directorio para guardar las imágenes (Asumido en la raíz superior)
+$UPLOAD_DIR = '../uploads/uploads/banners/'; // Directorio para guardar las imágenes (Asumido en la raíz superior)
 global $ciudades; // Asegura que la lista de ciudades esté disponible
 
 // Lista de ciudades disponibles
