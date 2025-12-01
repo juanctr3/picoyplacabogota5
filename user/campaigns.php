@@ -20,7 +20,7 @@ try {
     $stmt = $pdo->prepare("
         SELECT 
             b.id, b.titulo, b.city_slugs, b.posicion, b.is_active, b.is_approved, b.offer_cpc, b.offer_cpm,
-            COALESCE(SUM(CASE WHEN be.event_type = 'impression' THEN 1 ELSE 0 END), 0) AS total_impresiones,
+            COALESCE(SUM(CASE WHEN be.event_type = 'impresion' THEN 1 ELSE 0 END), 0) AS total_impresiones,
             COALESCE(SUM(CASE WHEN be.event_type = 'click' THEN 1 ELSE 0 END), 0) AS total_clicks,
             COALESCE(SUM(be.cost_applied), 0.00) AS total_spent
         FROM banners b
