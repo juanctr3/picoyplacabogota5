@@ -1,23 +1,19 @@
 <?php
 /**
- * admin/db_connect.php - Módulo centralizado de conexión PDO.
- * Proporciona la variable $pdo a todos los scripts del panel.
+ * admin/db_connect.php
+ * Conexión centralizada para el panel administrativo.
  */
 
-// 1. CONFIGURACIÓN DE LA BASE DE DATOS
 $dbHost = 'localhost';
 $dbName = 'picoyplacabogota';   
 $dbUser = 'picoyplacabogota';   
-$dbPass = 'Q20BsIFHI9j8h2XoYNQm3RmQg';   
-$pdo = null; 
+$dbPass = 'Q20BsIFHI9j8h2XoYNQm3RmQg'; 
 
 try {
-    // Conexión a la Base de Datos
     $pdo = new PDO("mysql:host=$dbHost;dbname=$dbName;charset=utf8", $dbUser, $dbPass);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 } catch (PDOException $e) {
-    // Si la conexión falla, terminamos la ejecución
-    http_response_code(500);
-    die("Error crítico de conexión a la Base de Datos. Contacte al administrador.");
+    // En producción, es mejor no mostrar detalles técnicos del error
+    die("Error crítico de conexión a la base de datos.");
 }
 ?>

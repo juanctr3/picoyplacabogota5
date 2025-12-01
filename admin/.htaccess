@@ -1,4 +1,15 @@
-AuthType Basic
-AuthName "Acceso Restringido al Panel Admin"
-AuthUserFile /home/picoyplacabogota/.htpasswd 
-Require valid-user
+# admin/.htaccess
+DirectoryIndex index.php
+Options -Indexes
+
+# Proteger archivos sensibles
+<FilesMatch "\.(php|inc)$">
+    Order Allow,Deny
+    Allow from all
+</FilesMatch>
+
+# Bloquear acceso directo a archivos de log o json si los hubiera
+<FilesMatch "\.(log|json)$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>
