@@ -1,53 +1,58 @@
 <?php
 /**
- * user/response.php - Procesa la respuesta de ePayco
+ * response.php - Página de Respuesta de ePayco (Frontend)
  */
 session_start();
-require_once 'db_connect.php'; 
 
-$ref_payco = $_GET['ref_payco'] ?? null;
+// Capturar los parámetros GET de ePayco
+$x_response = $_GET['x_response'] ?? 'No se recibió estado';
+$x_transaction_id = $_GET['x_transaction_id'] ?? 'N/A';
 
-if (!$ref_payco) {
-    die("No se recibió referencia de pago.");
-}
+// URL del botón de regresar
+$dashboardUrl = "dashboard.php";
 
-// Validar transacción con API de ePayco
-$url = "https://secure.epayco.co/validation/v1/reference/" . $ref_payco;
-$ch = curl_init();
-curl_setopt($ch, CURLOPT_URL, $url);
-curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-$response = curl_exec($ch);
-curl_close($ch);
-
-$data = json_decode($response, true);
-
-if ($data && $data['success']) {
-    $transaccion = $data['data'];
-    $estado = $transaccion['x_cod_response'];
-    $monto = $transaccion['x_amount'];
-    
-    // Buscar el ID de usuario en la descripción (hack simple, mejor usar x_extra1)
-    // En deposit.php pusimos: "Recarga de saldo para cuenta ID: X"
-    if (preg_match('/ID: (\d+)/', $transaccion['x_description'], $matches)) {
-        $userIdRecarga = $matches[1];
-        
-        // Estado 1 = Aceptada
-        if ($estado == 1) {
-            // Verificar si esta referencia ya fue procesada para no sumar doble (Necesitarías una tabla de transacciones, omitido por brevedad pero recomendado).
-            
-            // Actualizar Saldo
-            $stmt = $pdo->prepare("UPDATE users SET account_balance = account_balance + :monto WHERE id = :id");
-            $stmt->execute([':monto' => $monto, ':id' => $userIdRecarga]);
-            
-            echo "<h1>¡Pago Aprobado!</h1><p>Se han recargado $$monto COP a tu cuenta.</p>";
-            echo "<a href='dashboard.php'>Ir al Dashboard</a>";
-        } else {
-            echo "<h1>Transacción no aprobada</h1><p>Estado: " . $transaccion['x_response_reason_text'] . "</p>";
-        }
-    } else {
-        echo "Error: No se pudo identificar el usuario.";
-    }
+// Estilos y contenido de la tarjeta según el estado
+if ($x_response === 'Aceptada') {
+    $titulo = "¡Pago Exitoso!";
+    $mensaje = "Tu pago #$x_transaction_id fue aprobado. Tu saldo se actualizará pronto.";
+    $icono = "✅";
+    $clase = "success"; // Verde
+} elseif ($x_response === 'Rechazada') {
+    $titulo = "Pago Rechazado";
+    $mensaje = "Lo sentimos, el pago #$x_transaction_id fue rechazado.";
+    $icono = "❌";
+    $clase = "error"; // Rojo
 } else {
-    echo "Error validando la firma de ePayco.";
+    $titulo = "Procesando Pago...";
+    $mensaje = "Tu pago #$x_transaction_id está pendiente o en proceso de validación.";
+    $icono = "⏳";
+    $clase = "warning"; // Amarillo
 }
 ?>
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Estado del Pago</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        /* Estilos CSS (puedes usar los mismos que para MP) */
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f6f8; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; }
+        .card { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); width: 100%; max-width: 500px; text-align: center; }
+        .icon { font-size: 3em; margin-bottom: 20px; display: block; }
+        h1 { color: #2d3436; margin-bottom: 5px; }
+        .success { color: #155724; background-color: #d4edda; border-color: #c3e6cb; }
+        .error { color: #721c24; background-color: #f8d7da; border-color: #f5c6cb; }
+        .warning { color: #856404; background-color: #fff3cd; border-color: #ffeeba; }
+        .btn-back { display: block; margin-top: 20px; color: #888; text-decoration: none; }
+    </style>
+</head>
+<body>
+    <div class="card <?= $clase ?>">
+        <span class="icon"><?= $icono ?></span>
+        <h1><?= $titulo ?></h1>
+        <p><?= $mensaje ?></p>
+        <a href="<?= $dashboardUrl ?>" class="btn-back">Volver al Panel</a>
+    </div>
+</body>
+</html>

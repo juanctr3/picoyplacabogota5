@@ -1,36 +1,45 @@
 <?php
 /**
- * user/create_mp.php - Generador de Preferencia de Mercado Pago
+ * user/create_mp.php - Generador MP con Validación Dinámica
  */
 ini_set('display_errors', 0);
 header('Content-Type: application/json');
 
 session_start();
-require_once 'db_connect.php'; 
-require_once '../vendor/autoload.php'; // ¡Esta línea ahora sí funcionará!
-
-if (!isset($_SESSION['user_id'])) {
-    http_response_code(403);
-    echo json_encode(['error' => 'No autorizado']);
-    exit;
-}
-
-$input = json_decode(file_get_contents('php://input'), true);
-$monto = $input['monto'] ?? 0;
-
-if ($monto < 5000) {
-    echo json_encode(['error' => 'El monto mínimo es $5.000 COP']);
-    exit;
-}
-
-// --- CONFIGURACIÓN ---
-// Pega aquí tu Access Token (el que copiaste del dashboard de MP)
-MercadoPago\SDK::setAccessToken('APP_USR-4695873334209156-120112-5ce4147ddcc83361ce83858aeab2d023-1190559801'); 
-// ---------------------
 
 try {
-    $preference = new MercadoPago\Preference();
+    require_once 'db_connect.php'; 
+    require_once '../vendor/autoload.php'; 
 
+    if (!isset($_SESSION['user_id'])) {
+        http_response_code(403);
+        echo json_encode(['error' => 'No autorizado']);
+        exit;
+    }
+
+    $input = json_decode(file_get_contents('php://input'), true);
+    $monto = $input['monto'] ?? 0;
+
+    // 1. Consultar monto mínimo dinámico
+    $stmt = $pdo->query("SELECT config_value FROM system_config WHERE config_key = 'min_recharge_amount'");
+    $min_db = (int)$stmt->fetchColumn();
+    if(!$min_db) $min_db = 5000;
+
+    // 2. Validar
+    if ($monto < $min_db) {
+        echo json_encode(['error' => "El monto mínimo es $" . number_format($min_db) . " COP"]);
+        exit;
+    }
+
+    // --- CONFIGURACIÓN MP ---
+    MercadoPago\SDK::setAccessToken('APP_USR-4695873334209156-120112-5ce4147ddcc83361ce83858aeab2d023-1190559801'); 
+    // ------------------------
+
+    $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http";
+    $baseUrl = $protocol . "://" . $_SERVER['HTTP_HOST'] . dirname($_SERVER['PHP_SELF']);
+
+    $preference = new MercadoPago\Preference();
+    
     $item = new MercadoPago\Item();
     $item->title = "Recarga Saldo Publicidad";
     $item->quantity = 1;
@@ -42,24 +51,19 @@ try {
     $payer = new MercadoPago\Payer();
     $payer->email = $_SESSION['user_email']; 
     $preference->payer = $payer;
-
     $preference->external_reference = $_SESSION['user_id'];
 
-    // URLs dinámicas
-    $protocol = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http";
-    $baseUrl = $protocol . "://" . $_SERVER['HTTP_HOST'];
-    
     $preference->back_urls = array(
-        "success" => $baseUrl . "/user/mp_response.php",
-        "failure" => $baseUrl . "/user/mp_response.php",
-        "pending" => $baseUrl . "/user/mp_response.php"
+        "success" => $baseUrl . "/mp_response.php",
+        "failure" => $baseUrl . "/mp_response.php",
+        "pending" => $baseUrl . "/mp_response.php"
     );
     $preference->auto_return = "approved"; 
 
     $preference->save();
 
     if (!$preference->id) {
-        throw new Exception("Error: No se obtuvo ID de preferencia de MP.");
+        throw new Exception("Error al crear preferencia en Mercado Pago.");
     }
 
     echo json_encode([
@@ -70,6 +74,6 @@ try {
 
 } catch (Exception $e) {
     http_response_code(500);
-    echo json_encode(['error' => 'Error Interno: ' . $e->getMessage()]);
+    echo json_encode(['error' => $e->getMessage()]);
 }
 ?>

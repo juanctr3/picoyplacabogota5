@@ -1,42 +1,33 @@
 <?php
 /**
- * user/create_ad.php - Formulario Unificado de Creación y Edición (Modo Anunciante)
- * Implementa la carga de archivos directa y la asignación automática de user_id.
+ * user/create_ad.php - Formulario de Anuncio (Responsivo + Frecuencia)
  */
 session_start();
 require_once 'db_connect.php'; 
 require_once '../config-ciudades.php'; 
 
-// CRÍTICO: Comprobar autenticación
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'advertiser') {
-    header("Location: login.php");
-    exit;
+    header("Location: login.php"); exit;
 }
 
 $userId = $_SESSION['user_id']; 
-// ----------------------------------------------------------------------
-// RUTA DE CARGA DE ARCHIVOS Y DECLARACIÓN GLOBAL DE CIUDADES (FIX)
-// ----------------------------------------------------------------------
-$UPLOAD_DIR = '../uploads/uploads/banners/'; // Directorio para guardar las imágenes (Asumido en la raíz superior)
-global $ciudades; // Asegura que la lista de ciudades esté disponible
+global $ciudades;
 
-// Lista de ciudades disponibles
+// --- OBTENER PRECIOS MÍNIMOS DEL ADMIN ---
+$min_cpc = 200;
+$min_cpm = 5000;
+try {
+    $stmtC = $pdo->query("SELECT config_key, config_value FROM system_config WHERE config_key IN ('min_cpc', 'min_cpm')");
+    $sysConfig = $stmtC->fetchAll(PDO::FETCH_KEY_PAIR);
+    if(isset($sysConfig['min_cpc'])) $min_cpc = (float)$sysConfig['min_cpc'];
+    if(isset($sysConfig['min_cpm'])) $min_cpm = (float)$sysConfig['min_cpm'];
+} catch(Exception $e) {}
+
 $ciudades_disponibles = [];
 foreach ($ciudades as $slug => $data) {
-    if ($slug !== 'rotaciones_base') {
-        $ciudades_disponibles[$slug] = $data['nombre'];
-    }
+    if ($slug !== 'rotaciones_base') $ciudades_disponibles[$slug] = $data['nombre'];
 }
 
-// Lista de logos aprobados (optimización anterior)
-$logos_aprobados = [
-    '/favicons/apple-icon.png' => 'Semáforo Grande (Icono Principal)',
-    '/favicons/favicon-32x32.png' => 'Semáforo Pequeño (32x32)',
-    '/favicons/android-icon-192x192.png' => 'Semáforo (192x192)',
-    '/uploads/banners/logo_filedata.png' => 'Logo de Filedata (Ejemplo)',
-];
-
-// Variables de estado y de formulario
 $mensaje_estado = '';
 $es_error = false;
 $banner_id = $_GET['id'] ?? null;
@@ -44,154 +35,104 @@ $datos_form = [];
 $modo_edicion = false;
 $banner_ciudades_array = []; 
 
-// 1. LÓGICA DE CARGA DE DATOS PARA EDICIÓN
+// CARGAR DATOS SI ES EDICIÓN
 if ($banner_id) {
     $modo_edicion = true;
     try {
-        // Solo puede editar sus propios banners (Filtro user_id)
         $stmt = $pdo->prepare("SELECT * FROM banners WHERE id = :id AND user_id = :userId");
         $stmt->execute([':id' => $banner_id, ':userId' => $userId]);
         $datos_form = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$datos_form) {
-            $mensaje_estado = "Error: Banner no encontrado o no te pertenece.";
+            $mensaje_estado = "Banner no encontrado.";
             $es_error = true;
-            $modo_edicion = false;
-            $banner_id = null;
         } else {
             $banner_ciudades_array = explode(',', $datos_form['city_slugs']);
         }
     } catch (PDOException $e) {
-        $mensaje_estado = "Error al cargar datos: " . $e->getMessage();
+        $mensaje_estado = "Error: " . $e->getMessage();
         $es_error = true;
     }
 }
 
-// Inicializar datos para el modo Creación
+// VALORES POR DEFECTO
 if (!$modo_edicion) {
     $datos_form = [
-        'city_slugs' => '',
-        'titulo' => '',
-        'descripcion' => '',
-        'logo_url' => '', 
-        'cta_url' => '',
         'posicion' => 'top',
         'max_impresiones' => 50000,
         'max_clicks' => 500,
-        'tiempo_muestra' => 12000,
-        'frecuencia_factor' => 2,
-        'offer_cpc' => 0.15,
-        'offer_cpm' => 5.00,
+        'offer_cpc' => $min_cpc,
+        'offer_cpm' => $min_cpm,
+        'freq_max_views' => 3, // Default: 3 veces
+        'freq_reset_hours' => 6, // Default: Cada 6 horas
+        'logo_url' => ''
     ];
 }
 
-
-// 2. LÓGICA DE PROCESAMIENTO DEL FORMULARIO (Creación o Edición)
+// PROCESAR GUARDADO
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
     
+    // Manejo de Imagen
     $file_path_db = $datos_form['logo_url'] ?? ''; 
-    $file_uploaded = false;
-    
-    // 2.1. MANEJO DE LA CARGA DE ARCHIVOS (CRÍTICO)
     if (isset($_FILES['logo_file']) && $_FILES['logo_file']['error'] === UPLOAD_ERR_OK) {
+        $ext = pathinfo($_FILES['logo_file']['name'], PATHINFO_EXTENSION);
+        $safe_name = uniqid('banner_', true) . '.' . $ext;
+        $upload_dir = '../assets/uploads/banners/';
         
-        $file = $_FILES['logo_file'];
-        $finfo = finfo_open(FILEINFO_MIME_TYPE);
-        $mime_type = finfo_file($finfo, $file['tmp_name']);
+        if (!is_dir($upload_dir)) mkdir($upload_dir, 0755, true);
         
-        // Validación de Tipo y Tamaño (SEGURIDAD BÁSICA)
-        if (in_array($mime_type, ['image/jpeg', 'image/png', 'image/gif'])) {
-            if ($file['size'] < 1000000) { // Límite de 1MB
-                
-                // Renombrar el archivo de forma segura y moverlo
-                $ext = pathinfo($file['name'], PATHINFO_EXTENSION);
-                $safe_filename = uniqid('banner_', true) . '.' . $ext;
-                $target_file = $UPLOAD_DIR . $safe_filename;
-                
-                // Asegurar que el directorio exista (solo para robustez)
-                if (!is_dir($UPLOAD_DIR)) {
-                    mkdir($UPLOAD_DIR, 0777, true);
-                }
-
-                if (move_uploaded_file($file['tmp_name'], $target_file)) {
-                    $file_path_db = '/' . $UPLOAD_DIR . $safe_filename; // Ruta pública para la BD
-                    $file_uploaded = true;
-                } else {
-                    $mensaje_estado = "Error al mover el archivo. Verifique los permisos (chmod 777) de " . $UPLOAD_DIR;
-                    $es_error = true;
-                }
-            } else {
-                $mensaje_estado = "Error: El archivo excede el tamaño máximo de 1MB.";
-                $es_error = true;
-            }
+        if (move_uploaded_file($_FILES['logo_file']['tmp_name'], $upload_dir . $safe_name)) {
+            $file_path_db = '/assets/uploads/banners/' . $safe_name;
         } else {
-            $mensaje_estado = "Error: Tipo de archivo no permitido. Solo JPEG, PNG o GIF.";
+            $mensaje_estado = "Error al subir imagen.";
             $es_error = true;
         }
     }
 
-    // 2.2. Procesamiento de Datos (Solo si la carga fue exitosa o si estamos editando sin cambiar la imagen)
-    if ($es_error) {
-        // Si hay error en la carga, no procesamos la BD
-    } else {
-        
+    if (!$es_error) {
         $selected_cities = $_POST['city_slugs'] ?? [];
-        $data_to_save = [
-            'user_id' => $userId, 
-            'city_slugs' => implode(',', $selected_cities), 
-            'titulo' => substr(trim($_POST['titulo'] ?? ''), 0, 25), 
-            'descripcion' => substr(trim($_POST['descripcion'] ?? ''), 0, 100), 
-            'logo_url' => $file_path_db, // Usar la nueva ruta o la ruta existente
-            'cta_url' => trim($_POST['cta_url'] ?? ''),
-            'posicion' => $_POST['posicion'] ?? 'top',
-            'max_impresiones' => (int)($_POST['max_impresiones'] ?? 0),
-            'max_clicks' => (int)($_POST['max_clicks'] ?? 0),
-            'tiempo_muestra' => (int)($_POST['tiempo_muestra'] ?? 10000),
-            'frecuencia_factor' => (int)($_POST['frecuencia_factor'] ?? 1),
-            'offer_cpc' => (float)($_POST['offer_cpc'] ?? 0.00),
-            'offer_cpm' => (float)($_POST['offer_cpm'] ?? 0.00),
-        ];
-
-        // Recopilar los datos del formulario para rellenar si falla la BD
-        $datos_form = array_merge($datos_form, $data_to_save);
-        $banner_ciudades_array = $selected_cities; 
-
-        if (empty($data_to_save['titulo']) || empty($data_to_save['cta_url']) || empty($data_to_save['logo_url']) || empty($data_to_save['city_slugs'])) {
-            $mensaje_estado = 'Error: Todos los campos obligatorios deben ser llenados (incluyendo el Logo).';
-            $es_error = true;
+        $cpc_input = (float)$_POST['offer_cpc'];
+        $cpm_input = (float)$_POST['offer_cpm'];
+        
+        if ($cpc_input < $min_cpc || $cpm_input < $min_cpm) {
+             $mensaje_estado = "La oferta no puede ser menor al mínimo ($$min_cpc CPC / $$min_cpm CPM).";
+             $es_error = true;
         } else {
+            $data_to_save = [
+                'user_id' => $userId, 
+                'city_slugs' => implode(',', $selected_cities), 
+                'titulo' => substr(trim($_POST['titulo']), 0, 30), 
+                'descripcion' => substr(trim($_POST['descripcion']), 0, 100), 
+                'logo_url' => $file_path_db,
+                'cta_url' => trim($_POST['cta_url']),
+                'posicion' => $_POST['posicion'] ?? 'top',
+                'max_impresiones' => (int)$_POST['max_impresiones'],
+                'max_clicks' => (int)$_POST['max_clicks'],
+                'offer_cpc' => $cpc_input,
+                'offer_cpm' => $cpm_input,
+                'freq_max_views' => (int)($_POST['freq_max_views'] ?? 3),
+                'freq_reset_hours' => (int)($_POST['freq_reset_hours'] ?? 6),
+                'tiempo_muestra' => 10000
+            ];
+    
             try {
                 if ($_POST['action'] === 'create') {
-                    // Creación: Se inserta como INACTIVO y PENDIENTE DE APROBACIÓN
-                    $sql = "INSERT INTO banners (user_id, city_slugs, titulo, descripcion, logo_url, cta_url, posicion, max_impresiones, max_clicks, tiempo_muestra, frecuencia_factor, offer_cpc, offer_cpm, is_active, is_approved)
-                            VALUES (:user_id, :city_slugs, :titulo, :descripcion, :logo_url, :cta_url, :posicion, :max_impresiones, :max_clicks, :tiempo_muestra, :frecuencia_factor, :offer_cpc, :offer_cpm, FALSE, FALSE)";
+                    $sql = "INSERT INTO banners (user_id, city_slugs, titulo, descripcion, logo_url, cta_url, posicion, max_impresiones, max_clicks, tiempo_muestra, offer_cpc, offer_cpm, freq_max_views, freq_reset_hours, is_active, is_approved)
+                            VALUES (:user_id, :city_slugs, :titulo, :descripcion, :logo_url, :cta_url, :posicion, :max_impresiones, :max_clicks, :tiempo_muestra, :offer_cpc, :offer_cpm, :freq_max_views, :freq_reset_hours, 0, 0)";
                     $stmt = $pdo->prepare($sql);
                     $stmt->execute($data_to_save);
-                    
-                    $mensaje_estado = "Anuncio enviado para APROBACIÓN. Será activado cuando un administrador lo revise y tu saldo sea positivo.";
-                    header("Location: campaigns.php?msg=" . urlencode($mensaje_estado));
+                    header("Location: campaigns.php?msg=" . urlencode("Campaña creada. Pendiente de aprobación."));
                     exit;
-
-                } elseif ($_POST['action'] === 'edit' && $banner_id) {
-                    // Edición: Actualiza y pone en estado PENDIENTE DE APROBACIÓN
+                } elseif ($_POST['action'] === 'edit') {
                     $data_to_save['id'] = $banner_id;
-                    $sql = "UPDATE banners SET 
-                                city_slugs = :city_slugs, titulo = :titulo, descripcion = :descripcion, 
-                                logo_url = :logo_url, cta_url = :cta_url, posicion = :posicion, 
-                                max_impresiones = :max_impresiones, max_clicks = :max_clicks, 
-                                tiempo_muestra = :tiempo_muestra, frecuencia_factor = :frecuencia_factor,
-                                offer_cpc = :offer_cpc, offer_cpm = :offer_cpm, 
-                                is_approved = FALSE -- Al editar, siempre vuelve a pendiente
-                            WHERE id = :id AND user_id = :user_id";
+                    $sql = "UPDATE banners SET city_slugs=:city_slugs, titulo=:titulo, descripcion=:descripcion, logo_url=:logo_url, cta_url=:cta_url, posicion=:posicion, max_impresiones=:max_impresiones, max_clicks=:max_clicks, tiempo_muestra=:tiempo_muestra, offer_cpc=:offer_cpc, offer_cpm=:offer_cpm, freq_max_views=:freq_max_views, freq_reset_hours=:freq_reset_hours, is_approved=0 WHERE id=:id AND user_id=:user_id";
                     $stmt = $pdo->prepare($sql);
                     $stmt->execute($data_to_save);
-                    
-                    $mensaje_estado = "Anuncio ID {$banner_id} actualizado. Estado cambiado a PENDIENTE DE APROBACIÓN.";
-                    header("Location: campaigns.php?msg=" . urlencode($mensaje_estado));
+                    header("Location: campaigns.php?msg=" . urlencode("Campaña actualizada. Pendiente de revisión."));
                     exit;
                 }
-            } catch (PDOException $e) {
-                $mensaje_estado = "Error de base de datos: " . $e->getMessage();
+            } catch (Exception $e) {
+                $mensaje_estado = "Error BD: " . $e->getMessage();
                 $es_error = true;
             }
         }
@@ -202,137 +143,182 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title><?= $modo_edicion ? 'Editar Anuncio' : 'Crear Nuevo Anuncio' ?></title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>Gestor de Anuncio</title>
     <style>
-        body { font-family: sans-serif; padding: 20px; background-color: #f4f7f6; }
-        .container { max-width: 1000px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
-        h1 { color: #3498db; border-bottom: 2px solid #ecf0f1; padding-bottom: 10px; margin-bottom: 20px; }
-        label { display: block; margin-top: 10px; font-weight: bold; }
-        input[type="text"], input[type="number"], input[type="file"], select { width: 100%; padding: 8px; margin-top: 5px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-        button { background-color: #2ecc71; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; margin-top: 10px; }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        .full-width { grid-column: span 2; }
-        .char-counter { font-size: 0.8em; color: #7f8c8d; }
-        .error-box { background-color: #fcebeb; color: #c0392b; padding: 10px; border-radius: 4px; margin-bottom: 20px; }
-        .success-box { background-color: #e6f7e9; color: #27ae60; padding: 10px; border-radius: 4px; margin-bottom: 20px; }
-        .city-checkbox-grid { display: flex; flex-wrap: wrap; gap: 15px; margin-top: 5px; margin-bottom: 15px; border: 1px solid #ccc; padding: 10px; border-radius: 4px; }
-        .city-checkbox-grid label { display: inline-flex; align-items: center; font-weight: normal; margin: 0; }
-        .city-checkbox-grid input[type="checkbox"] { width: auto; margin-right: 5px; margin-top: 0; }
-        .info-alert { background-color: #f1c40f; color: #333; padding: 10px; border-radius: 4px; margin-bottom: 15px; font-weight: bold; }
-        .current-logo-display { margin-top: 10px; padding: 10px; border: 1px dashed #ccc; text-align: center; font-size: 0.9em; }
-        .current-logo-display img { max-width: 50px; height: auto; display: block; margin: 5px auto; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; padding: 20px; margin: 0; }
+        .container { max-width: 1100px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
+        
+        h1 { color: #2c3e50; margin-bottom: 20px; border-bottom: 2px solid #f39c12; padding-bottom: 10px; }
+        
+        /* Grid Responsivo */
+        .grid-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+        
+        .section-box { background: #fff; margin-bottom: 20px; }
+        .section-title { font-size: 1.1em; color: #34495e; font-weight: bold; margin-bottom: 15px; border-left: 4px solid #3498db; padding-left: 10px; }
+        
+        .form-group { margin-bottom: 15px; }
+        label { display: block; font-weight: 600; margin-bottom: 5px; color: #555; font-size: 0.9em; }
+        input[type="text"], input[type="number"], select, textarea { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 1em; box-sizing: border-box; }
+        input:focus { border-color: #3498db; outline: none; }
+        
+        .char-count { font-size: 0.8em; color: #7f8c8d; text-align: right; display: block; margin-top: 4px; }
+        
+        .offer-box { background: #f0f9ff; padding: 20px; border-radius: 8px; border: 1px solid #bce0fd; }
+        .offer-help { font-size: 0.85em; color: #005b9f; margin-bottom: 15px; line-height: 1.4; }
+        
+        .city-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; max-height: 180px; overflow-y: auto; border: 1px solid #eee; padding: 10px; border-radius: 5px; }
+        .city-option { display: flex; align-items: center; font-size: 0.9em; gap: 8px; cursor: pointer; padding: 5px; border-radius: 4px; transition: background 0.2s; }
+        .city-option:hover { background: #f9f9f9; }
+        
+        .btn-save { width: 100%; padding: 15px; background: #2ecc71; color: white; font-weight: bold; border: none; border-radius: 6px; cursor: pointer; font-size: 1.1em; margin-top: 20px; transition: 0.2s; }
+        .btn-save:hover { background: #27ae60; transform: translateY(-2px); }
+        .btn-cancel { display: block; text-align: center; margin-top: 15px; color: #7f8c8d; text-decoration: none; }
+        
+        .error-box { background: #fcebeb; color: #c0392b; padding: 15px; border-radius: 6px; margin-bottom: 20px; border-left: 5px solid #e74c3c; }
+        
+        .preview-img { max-width: 150px; margin-top: 10px; border: 1px solid #ddd; padding: 4px; border-radius: 4px; background: white; }
+
+        /* --- MÓVIL --- */
+        @media (max-width: 768px) {
+            body { padding: 10px; }
+            .container { padding: 20px; }
+            .grid-layout { grid-template-columns: 1fr; gap: 20px; }
+            .city-grid { grid-template-columns: 1fr 1fr; }
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1><?= $modo_edicion ? 'Editar Anuncio ID ' . $banner_id : 'Crear Nuevo Anuncio' ?> 📝</h1>
-        <p><a href="campaigns.php">← Mis Campañas</a> | Su ID de Anunciante es: <?= $userId ?></p>
+        <h1><?= $modo_edicion ? 'Editar Campaña' : 'Nueva Campaña' ?></h1>
         
         <?php if ($mensaje_estado): ?>
-            <div class="<?= $es_error ? 'error-box' : 'success-box' ?>">
-                <?= htmlspecialchars($mensaje_estado) ?>
-            </div>
+            <div class="error-box">⚠️ <?= htmlspecialchars($mensaje_estado) ?></div>
         <?php endif; ?>
 
-        <form method="POST" action="create_ad.php<?= $modo_edicion ? '?id=' . $banner_id : '' ?>" enctype="multipart/form-data">
+        <form method="POST" enctype="multipart/form-data">
             <input type="hidden" name="action" value="<?= $modo_edicion ? 'edit' : 'create' ?>">
             
-            <?php if ($modo_edicion): ?>
-                 <input type="hidden" name="logo_url" value="<?= htmlspecialchars($datos_form['logo_url']) ?>">
-            <?php endif; ?>
-
-            <div class="grid">
+            <div class="grid-layout">
                 <div>
-                    <h2>Contenido y Destino</h2>
-                    
-                    <label>Ciudades donde mostrar (Requisito Múltiple)</label>
-                    <div class="city-checkbox-grid">
-                        <?php foreach($ciudades_disponibles as $slug => $nombre): ?>
-                            <label>
-                                <input type="checkbox" name="city_slugs[]" value="<?= $slug ?>" 
-                                    <?= in_array($slug, $banner_ciudades_array) ? 'checked' : '' ?>>
-                                <?= htmlspecialchars($nombre) ?>
-                            </label>
-                        <?php endforeach; ?>
+                    <div class="section-box">
+                        <div class="section-title">🎨 Diseño del Anuncio</div>
+                        
+                        <div class="form-group">
+                            <label>Título (Nombre de tu negocio)</label>
+                            <input type="text" name="titulo" id="titulo" maxlength="30" required value="<?= htmlspecialchars($datos_form['titulo'] ?? '') ?>" placeholder="Ej: Restaurante El Sabor">
+                            <span id="count-titulo" class="char-count">30 restantes</span>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Descripción (Oferta corta)</label>
+                            <textarea name="descripcion" id="descripcion" maxlength="100" rows="3" required placeholder="Ej: 20% de descuento en almuerzos hoy."><?= htmlspecialchars($datos_form['descripcion'] ?? '') ?></textarea>
+                            <span id="count-desc" class="char-count">100 restantes</span>
+                        </div>
+
+                        <div class="form-group">
+                            <label>Enlace de Destino (Al hacer clic)</label>
+                            <input type="text" name="cta_url" required value="<?= htmlspecialchars($datos_form['cta_url'] ?? '') ?>" placeholder="https://wa.me/57...">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Logo o Imagen (Cuadrada 1:1)</label>
+                            <input type="file" name="logo_file" accept="image/*" <?= $modo_edicion ? '' : 'required' ?>>
+                            <?php if($modo_edicion && !empty($datos_form['logo_url'])): ?>
+                                <div style="margin-top:5px; font-size:0.8em; color:#777;">Imagen Actual:</div>
+                                <img src="<?= htmlspecialchars($datos_form['logo_url']) ?>" class="preview-img">
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+
+                <div>
+                    <div class="section-box">
+                        <div class="section-title">🎯 Segmentación & Frecuencia</div>
+                        <div class="form-group">
+                            <label>Ciudades (¿Dónde se verá?)</label>
+                            <div class="city-grid">
+                                <?php foreach($ciudades_disponibles as $slug => $nombre): ?>
+                                    <label class="city-option">
+                                        <input type="checkbox" name="city_slugs[]" value="<?= $slug ?>" <?= in_array($slug, $banner_ciudades_array) ? 'checked' : '' ?>>
+                                        <?= $nombre ?>
+                                    </label>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+
+                        <div class="grid-layout" style="gap:10px; grid-template-columns: 1fr 1fr;">
+                            <div class="form-group">
+                                <label>Posición</label>
+                                <select name="posicion">
+                                    <option value="top" <?= ($datos_form['posicion']??'')=='top'?'selected':'' ?>>Arriba (Header)</option>
+                                    <option value="bottom" <?= ($datos_form['posicion']??'')=='bottom'?'selected':'' ?>>Abajo (Footer)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Vistas por Usuario</label>
+                                <input type="number" name="freq_max_views" min="1" max="10" value="<?= $datos_form['freq_max_views'] ?? 3 ?>" title="Máximo de veces que un mismo usuario verá tu anuncio">
+                            </div>
+                            <div class="form-group" style="grid-column: span 2;">
+                                <label>Reiniciar contador cada (Horas)</label>
+                                <input type="number" name="freq_reset_hours" min="1" max="24" value="<?= $datos_form['freq_reset_hours'] ?? 6 ?>" title="Tiempo para volver a mostrar el anuncio al mismo usuario">
+                            </div>
+                        </div>
                     </div>
 
-                    <label for="titulo">Título (Máx. 25 caracteres)</label>
-                    <input type="text" name="titulo" id="titulo" maxlength="25" required value="<?= htmlspecialchars($datos_form['titulo'] ?? '') ?>">
-                    <span id="counter-titulo" class="char-counter">25 restantes</span>
+                    <div class="section-box offer-box">
+                        <div class="section-title">💰 Tu Oferta (Subasta)</div>
+                        <p class="offer-help">
+                            El sistema prioriza los anuncios que pagan más. Define tu oferta base por click y visualización.
+                        </p>
 
-                    <label for="descripcion">Descripción (Máx. 100 caracteres)</label>
-                    <input type="text" name="descripcion" id="descripcion" maxlength="100" required value="<?= htmlspecialchars($datos_form['descripcion'] ?? '') ?>">
-                    <span id="counter-descripcion" class="char-counter">100 restantes</span>
-
-                    <label for="cta_url">URL de Destino (Link)</label>
-                    <input type="text" name="cta_url" id="cta_url" placeholder="https://ejemplo.com/" required value="<?= htmlspecialchars($datos_form['cta_url'] ?? '') ?>">
-                </div>
-
-                <div>
-                    <h2>Oferta y Límites</h2>
-                    
-                    <label for="logo_file">Logo (Carga Directa - JPG/PNG/GIF, Máx. 1MB)</label>
-                    <input type="file" name="logo_file" id="logo_file" accept=".jpg, .jpeg, .png, .gif" <?= $modo_edicion && empty($datos_form['logo_url']) ? 'required' : '' ?>>
-                    
-                    <?php if ($modo_edicion && !empty($datos_form['logo_url'])): ?>
-                        <div class="current-logo-display">
-                            Logo Actual: <img src="<?= htmlspecialchars($datos_form['logo_url']) ?>" alt="Logo del Banner">
-                            <p>(Dejar vacío si no desea cambiar)</p>
+                        <div class="form-group">
+                            <label>Costo por Clic (CPC) - Mín: $<?= number_format($min_cpc) ?></label>
+                            <input type="number" name="offer_cpc" min="<?= $min_cpc ?>" step="10" required value="<?= $datos_form['offer_cpc'] ?? $min_cpc ?>">
                         </div>
-                    <?php endif; ?>
-                    
-                    <label for="posicion">Posición del Banner</label>
-                    <select name="posicion" id="posicion" required>
-                        <option value="top" <?= ($datos_form['posicion'] ?? 'top') === 'top' ? 'selected' : '' ?>>Arriba (Flotante Superior)</option>
-                        <option value="bottom" <?= ($datos_form['posicion'] ?? 'top') === 'bottom' ? 'selected' : '' ?>>Abajo (Flotante Inferior)</option>
-                    </select>
 
-                    <label for="tiempo_muestra">Duración Visible (ms)</label>
-                    <input type="number" name="tiempo_muestra" id="tiempo_muestra" min="1000" required value="<?= $datos_form['tiempo_muestra'] ?? 12000 ?>">
+                        <div class="form-group">
+                            <label>Costo por 1000 Vistas (CPM) - Mín: $<?= number_format($min_cpm) ?></label>
+                            <input type="number" name="offer_cpm" min="<?= $min_cpm ?>" step="100" required value="<?= $datos_form['offer_cpm'] ?? $min_cpm ?>">
+                        </div>
+                    </div>
 
-                    <h3>Oferta (Prioridad)</h3>
-                    <label for="offer_cpc">Valor por Click (CPC - COP)</label>
-                    <input type="number" name="offer_cpc" id="offer_cpc" min="0.01" step="0.01" required value="<?= $datos_form['offer_cpc'] ?? 0.15 ?>">
-                    
-                    <label for="offer_cpm">Valor por 1000 Vistas (CPM - COP)</label>
-                    <input type="number" name="offer_cpm" id="offer_cpm" min="0.01" step="0.01" required value="<?= $datos_form['offer_cpm'] ?? 5.00 ?>">
-                    <div class="char-counter">**Mayor oferta = Mayor prioridad de aparecer.**</div>
-                </div>
-
-                <div class="full-width">
-                    <h3>Límites de Presupuesto</h3>
-                    <label for="max_clicks">Máx. Clicks (Presupuesto por Click)</label>
-                    <input type="number" name="max_clicks" id="max_clicks" min="1" required value="<?= $datos_form['max_clicks'] ?? 500 ?>">
-
-                    <label for="max_impresiones">Máx. Impresiones (Presupuesto por Vista)</label>
-                    <input type="number" name="max_impresiones" id="max_impresiones" min="1" required value="<?= $datos_form['max_impresiones'] ?? 50000 ?>">
-                </div>
-
-                <div class="full-width">
-                    <button type="submit"><?= $modo_edicion ? 'Actualizar y Enviar a Revisión' : 'Enviar Anuncio a Revisión' ?></button>
+                    <div class="section-box">
+                        <div class="section-title">🛑 Límites de Presupuesto</div>
+                        <div style="display:flex; gap:10px;">
+                            <div style="flex:1">
+                                <label>Máx. Clics</label>
+                                <input type="number" name="max_clicks" min="10" value="<?= $datos_form['max_clicks'] ?? 500 ?>">
+                            </div>
+                            <div style="flex:1">
+                                <label>Máx. Vistas</label>
+                                <input type="number" name="max_impresiones" min="1000" value="<?= $datos_form['max_impresiones'] ?? 50000 ?>">
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
+
+            <button type="submit" class="btn-save">🚀 <?= $modo_edicion ? 'Guardar Cambios' : 'Crear Campaña' ?></button>
+            <a href="campaigns.php" class="btn-cancel">Cancelar</a>
         </form>
     </div>
-    
+
     <script>
-        function updateCounter(input, counterId, max) {
-            const el = document.getElementById(input);
-            const counter = document.getElementById(counterId);
-            
+        // Contador de Caracteres
+        function setupCounter(inputId, displayId, max) {
+            const input = document.getElementById(inputId);
+            const display = document.getElementById(displayId);
             const update = () => {
-                const remaining = max - el.value.length;
-                counter.textContent = remaining + ' restantes';
-                counter.style.color = remaining < 0 ? 'red' : '#7f8c8d';
+                const left = max - input.value.length;
+                display.textContent = left + " caracteres restantes";
+                display.style.color = left < 5 ? "#e74c3c" : "#7f8c8d";
             };
-            
-            el.addEventListener('input', update);
+            input.addEventListener('input', update);
             update();
         }
-
         document.addEventListener('DOMContentLoaded', () => {
-            updateCounter('titulo', 'counter-titulo', 25);
-            updateCounter('descripcion', 'counter-descripcion', 100); 
+            setupCounter('titulo', 'count-titulo', 30); // Límite actualizado a 30
+            setupCounter('descripcion', 'count-desc', 100);
         });
     </script>
 </body>

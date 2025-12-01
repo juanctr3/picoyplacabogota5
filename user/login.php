@@ -1,56 +1,59 @@
 <?php
 /**
- * user/login.php - Inicio de Sesión para Anunciantes
+ * user/login.php - Iniciar Sesión
  */
-require_once 'db_connect.php'; 
 session_start();
+require_once 'db_connect.php'; 
 
-$error = '';
-
-// Si ya hay una sesión activa, redirigir al panel
 if (isset($_SESSION['user_id'])) {
-    header("Location: dashboard.php");
+    // Redirigir según rol
+    if ($_SESSION['user_role'] === 'admin') {
+        header("Location: ../admin/index.php");
+    } else {
+        header("Location: dashboard.php");
+    }
     exit;
 }
 
+$error = '';
+$msg = '';
+
 if (isset($_GET['registered'])) {
-    $error = '¡Registro exitoso! Por favor, inicie sesión.';
+    $msg = "¡Cuenta creada! Inicia sesión para continuar.";
+}
+if (isset($_GET['reset'])) {
+    $msg = "Tu contraseña ha sido restablecida. Ingresa con la nueva clave.";
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
-    
+
     if (empty($email) || empty($password)) {
-        $error = 'Por favor, ingrese sus credenciales.';
+        $error = "Por favor completa todos los campos.";
     } else {
         try {
-            // 1. Buscar usuario por email
-            $stmt = $pdo->prepare("SELECT id, email, password_hash, role FROM users WHERE email = :email");
+            $stmt = $pdo->prepare("SELECT id, password_hash, role, email FROM users WHERE email = :email");
             $stmt->execute([':email' => $email]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
             if ($user && password_verify($password, $user['password_hash'])) {
-                // 2. Autenticación exitosa: Iniciar sesión
+                // Login Exitoso
                 $_SESSION['user_id'] = $user['id'];
-                $_SESSION['user_email'] = $user['email'];
                 $_SESSION['user_role'] = $user['role'];
-
-                // 3. Redirección según el rol
+                $_SESSION['user_email'] = $user['email'];
+                
                 if ($user['role'] === 'admin') {
-                    header("Location: ../admin/index.php"); // Redirige al panel principal
+                    header("Location: ../admin/index.php");
                 } else {
-                    header("Location: dashboard.php"); // Redirige al panel de anunciantes
+                    header("Location: dashboard.php");
                 }
                 exit;
-
             } else {
-                $error = 'Credenciales inválidas. Intente de nuevo.';
+                $error = "Credenciales incorrectas.";
             }
-
         } catch (PDOException $e) {
-            $error = 'Error de base de datos durante el inicio de sesión.';
-            error_log("Login DB Error: " . $e->getMessage());
+            $error = "Error de conexión.";
         }
     }
 }
@@ -59,39 +62,45 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <html lang="es">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Iniciar Sesión</title>
     <style>
-        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; background-color: #f4f7f6; }
-        .form-container { background: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); width: 100%; max-width: 400px; }
-        h1 { color: #3498db; text-align: center; margin-bottom: 25px; }
-        label { display: block; margin-bottom: 5px; font-weight: bold; }
-        input[type="email"], input[type="password"] { width: 100%; padding: 10px; margin-bottom: 20px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
-        button { width: 100%; background-color: #3498db; color: white; padding: 12px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; }
-        .error-msg { color: #e74c3c; text-align: center; margin-bottom: 15px; }
-        .register-link { text-align: center; margin-top: 20px; }
-        .success-msg { color: #27ae60; text-align: center; margin-bottom: 15px; }
+        body { font-family: 'Segoe UI', sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #f4f7f6; margin: 0; }
+        .login-card { background: white; padding: 40px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); width: 100%; max-width: 380px; }
+        h1 { color: #2c3e50; text-align: center; margin-bottom: 25px; font-size: 1.8em; }
+        
+        input { width: 100%; padding: 12px; margin-bottom: 15px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 1em; transition: 0.2s; }
+        input:focus { border-color: #3498db; outline: none; }
+        
+        button { width: 100%; background: #3498db; color: white; padding: 12px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 1.1em; margin-bottom: 15px; transition: 0.2s; }
+        button:hover { background: #2980b9; }
+        
+        .msg-box { padding: 10px; border-radius: 5px; margin-bottom: 20px; text-align: center; font-size: 0.9em; }
+        .error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        
+        .links { text-align: center; font-size: 0.9em; margin-top: 15px; display: flex; flex-direction: column; gap: 8px; }
+        .links a { color: #7f8c8d; text-decoration: none; }
+        .links a:hover { color: #3498db; text-decoration: underline; }
+        .links strong a { color: #3498db; font-weight: bold; }
     </style>
 </head>
 <body>
-    <div class="form-container">
-        <h1>Iniciar Sesión</h1>
-        <?php if (isset($_GET['registered'])): ?>
-            <div class="success-msg">¡Registro exitoso! Por favor, inicie sesión.</div>
-        <?php endif; ?>
-        <?php if ($error && !isset($_GET['registered'])): ?>
-            <div class="error-msg"><?= htmlspecialchars($error) ?></div>
-        <?php endif; ?>
-        <form method="POST" action="login.php">
-            <label for="email">Email:</label>
-            <input type="email" id="email" name="email" required>
-            
-            <label for="password">Contraseña:</label>
-            <input type="password" id="password" name="password" required>
-            
-            <button type="submit">Iniciar Sesión</button>
+    <div class="login-card">
+        <h1>Bienvenido</h1>
+        
+        <?php if ($error): ?> <div class="msg-box error"><?= htmlspecialchars($error) ?></div> <?php endif; ?>
+        <?php if ($msg): ?> <div class="msg-box success"><?= htmlspecialchars($msg) ?></div> <?php endif; ?>
+
+        <form method="POST">
+            <input type="email" name="email" placeholder="Correo Electrónico" required>
+            <input type="password" name="password" placeholder="Contraseña" required>
+            <button type="submit">Ingresar</button>
         </form>
-        <div class="register-link">
-            ¿No tienes cuenta? <a href="register.php">Regístrate aquí</a>
+        
+        <div class="links">
+            <a href="forgot_password.php">¿Olvidaste tu contraseña?</a>
+            <span>¿Aún no tienes cuenta? <strong><a href="register.php">Regístrate gratis</a></strong></span>
         </div>
     </div>
 </body>

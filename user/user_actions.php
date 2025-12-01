@@ -1,11 +1,10 @@
 <?php
 /**
- * user/user_actions.php - Lógica de Pausa/Reanudación de Campañas (Solo para el Usuario Logueado)
+ * user/user_actions.php - Acciones del Anunciante
  */
 session_start();
 require_once 'db_connect.php'; 
 
-// Comprobar autenticación
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'advertiser') {
     header("Location: login.php");
     exit;
@@ -17,31 +16,39 @@ $userId = $_SESSION['user_id'];
 $redirect_url = 'campaigns.php';
 
 if ($action && $id) {
-    // Definir el nuevo estado y forzar a entero (0 o 1)
-    $new_status_bool = ($action === 'activate') ? TRUE : FALSE;
-    $new_status_int = (int)$new_status_bool; 
-    
     try {
-        // Ejecución de la acción, con filtro por user_id para seguridad
-        $stmt = $pdo->prepare("UPDATE banners SET is_active = :status, is_approved = FALSE WHERE id = :id AND user_id = :userId");
-        
-        $stmt->execute([
-            ':status' => $new_status_int, 
-            ':id' => $id,
-            ':userId' => $userId
-        ]);
-        
-        // Redirección
-        $message = urlencode("Campaña ID {$id} actualizada a " . ($new_status_bool ? 'ACTIVO' : 'PAUSADO') . ". Si estaba ACTIVA, ahora se considera PENDIENTE DE REVISIÓN.");
-        $redirect_url = "campaigns.php?msg={$message}";
+        if ($action === 'delete') {
+            // --- ELIMINAR (Solo si le pertenece) ---
+            $stmt = $pdo->prepare("DELETE FROM banners WHERE id = :id AND user_id = :userId");
+            $stmt->execute([':id' => $id, ':userId' => $userId]);
+            
+            if ($stmt->rowCount() > 0) {
+                $message = urlencode("Anuncio eliminado correctamente.");
+            } else {
+                $message = urlencode("No se pudo eliminar. El anuncio no existe o no tienes permiso.");
+            }
+            $redirect_url = "campaigns.php?msg={$message}";
+
+        } else {
+            // --- PAUSAR / ACTIVAR ---
+            $new_status = ($action === 'activate') ? 1 : 0;
+            
+            // Al activar, pasa a pendiente de aprobación si estaba inactivo por moderación
+            // Aquí asumimos lógica simple: Si el usuario lo activa, vuelve a pedir aprobación (opcional)
+            // O simplemente cambia el estado is_active si ya estaba aprobado.
+            
+            $stmt = $pdo->prepare("UPDATE banners SET is_active = :status WHERE id = :id AND user_id = :userId");
+            $stmt->execute([':status' => $new_status, ':id' => $id, ':userId' => $userId]);
+            
+            $estado_txt = $new_status ? 'ACTIVO' : 'PAUSADO';
+            $message = urlencode("Campaña actualizada a: {$estado_txt}");
+            $redirect_url = "campaigns.php?msg={$message}";
+        }
 
     } catch (PDOException $e) {
-        $message = urlencode("Error al ejecutar la acción: " . $e->getMessage());
+        $message = urlencode("Error: " . $e->getMessage());
         $redirect_url = "campaigns.php?msg={$message}";
     }
-} else {
-    $message = urlencode("Acción o ID inválido.");
-    $redirect_url = "campaigns.php?msg={$message}";
 }
 
 header("Location: " . $redirect_url);
