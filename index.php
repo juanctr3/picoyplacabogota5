@@ -359,7 +359,7 @@ for ($i = 0; $i < 30; $i++) {
 </head>
 <body class="<?= $body_class_mode ?>" data-city-slug="<?= $ciudad_busqueda ?>">
 
-    <script src="/ads/client.js?v=2.0"></script>
+    <script src="/ads/ads.js?v=3.0"></script>
 
     <div id="install-wrapper">
         <div id="android-prompt" class="install-toast" style="display:none">
