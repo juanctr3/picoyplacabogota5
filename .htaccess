@@ -1,56 +1,47 @@
-# .htaccess
-# Configuración Apache para picoyplacabogota.com.co
-# Incluye: Redirecciones 301 (SEO Migration) y URLs amigables
-
+# .htaccess V19.0 - Full SEO & Fix Mañana
 <IfModule mod_rewrite.c>
     RewriteEngine On
     RewriteBase /
-# --- ESTRATEGIA SEO: MAÑANA (Evergreen) ---
-    # URL: /pico-y-placa/bogota/manana/particulares
-    # Internamente lo mandamos a index.php con una bandera &es_manana=1
-    RewriteRule ^pico-y-placa/([a-z-]+)/manana/([a-z-]+)/?$ index.php?ciudad_slug=$1&es_manana=1&tipo=$2 [L,QSA]
-    # ----------------------------------------------------------------------
-    # 1. MIGRACIÓN SEO: Redireccionar URLs antiguas a la nueva estructura
-    # ----------------------------------------------------------------------
-    
-    # CASO A: URL antigua SIN tipo de vehículo -> Redirigir a NUEVA con /particulares
-    RewriteCond %{REQUEST_URI} ^/pico-y-placa/([a-z-]+)-([0-9]{1,2})-de-([a-z]+)-de-([0-9]{4})/?$
-    RewriteRule ^(.*)$ https://picoyplacabogota.com.co/$1/particulares [R=301,L]
 
-    # CASO B: URL antigua CON tipo (si existía) -> Asegurar dominio nuevo
+    # ----------------------------------------------------------------------
+    # 1. URLs ESTRATÉGICAS (HOY / MAÑANA) - FIX DEFINITIVO Ñ
+    # ----------------------------------------------------------------------
+    # Hoy
+    RewriteRule ^pico-y-placa-bogota-hoy/?$ index.php?special_slug=hoy [L,QSA]
+    
+    # Mañana (Acepta: mañana, manana, ma%C3%B1ana)
+    RewriteRule ^pico-y-placa-bogota-ma(n|ñ|%C3%B1)ana/?$ index.php?special_slug=manana [L,QSA,NC]
+
+    # ----------------------------------------------------------------------
+    # 2. MIGRACIÓN SEO (REDIRECCIONES 301)
+    # ----------------------------------------------------------------------
+    # Redirigir tráfico antiguo a la nueva estructura limpia
+    RewriteCond %{REQUEST_URI} ^/pico-y-placa/([a-z-]+)-([0-9]{1,2})-de-([a-z]+)-de-([0-9]{4})/(.+)$
+    RewriteRule ^pico-y-placa/([a-z-]+)-([0-9]{1,2})-de-([a-z]+)-de-([0-9]{4})/(.+)$ https://picoyplacabogota.com.co/pico-y-placa/$1-$2-de-$3-de-$4 [R=301,L]
+
+    # Forzar HTTPS
     RewriteCond %{HTTPS} off
     RewriteRule ^(.*)$ https://picoyplacabogota.com.co/$1 [R=301,L]
 
     # ----------------------------------------------------------------------
-    # 2. ENRUTAMIENTO DE LA APLICACIÓN (Lógica interna)
+    # 3. ENRUTAMIENTO DE FECHAS (URL SIMPLIFICADA)
     # ----------------------------------------------------------------------
-
-    # --- NUEVA REGLA: Estrategia SEO "Mañana" (Evergreen) ---
-    # URL: /pico-y-placa/bogota/manana/particulares
-    RewriteRule ^pico-y-placa/([a-z-]+)/manana/([a-z-]+)/?$ index.php?ciudad_slug=$1&es_manana=1&tipo=$2 [L,QSA]
-
-    # Regla para URLs amigables completas: /pico-y-placa/ciudad-fecha/tipo
+    # Ejemplo: /pico-y-placa/bogota-4-de-diciembre-de-2025
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
-    RewriteRule ^pico-y-placa/([a-z-]+)-([0-9]{1,2})-de-([a-z]+)-de-([0-9]{4})/([a-z-]+)/?$ index.php?ciudad_slug=$1&dia=$2&mes_nombre=$3&ano=$4&tipo=$5 [L,QSA]
+    RewriteRule ^pico-y-placa/([a-z-]+)-([0-9]{1,2})-de-([a-z]+)-de-([0-9]{4})/?$ index.php?ciudad_slug=$1&dia=$2&mes_nombre=$3&ano=$4 [L,QSA]
 
-    # Regla de respaldo (Fallback)
+    # Fallback
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteRule ^(.*)$ index.php [L,QSA] 
 
 </IfModule>
 
-# ----------------------------------------------------------------------
-# 3. OPTIMIZACIONES Y SEGURIDAD
-# ----------------------------------------------------------------------
-
 <IfModule mod_headers.c>
     Header set Content-Type "text/html; charset=utf-8"
-    # Cacheo de recursos estáticos (CSS/JS/IMG) por 1 semana para velocidad
     <FilesMatch "\.(css|js|png|jpg|jpeg|svg|ico)$">
         Header set Cache-Control "max-age=604800, public"
     </FilesMatch>
 </IfModule>
-
 AddDefaultCharset UTF-8
