@@ -1,7 +1,14 @@
 <?php
 /**
- * user/create_ad.php - Formulario de Anuncio (Responsivo + Frecuencia)
+ * user/create_ad.php - Formulario de Anuncio
+ * Limpio de caracteres especiales y con depuración activa.
  */
+
+// 1. ACTIVAR ERRORES (Para ver si hay fallos de sintaxis o BD)
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 session_start();
 require_once 'db_connect.php'; 
 require_once '../config-ciudades.php'; 
@@ -13,7 +20,22 @@ if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'advertiser') {
 $userId = $_SESSION['user_id']; 
 global $ciudades;
 
-// --- OBTENER PRECIOS MÍNIMOS DEL ADMIN ---
+// --- 1. VERIFICACIÓN DE PERFIL COMPLETO ---
+// Si faltan las columnas en la BD, esto lanzará una excepción visible ahora.
+try {
+    $stmtProf = $pdo->prepare("SELECT full_name, document_number FROM users WHERE id = :id");
+    $stmtProf->execute([':id' => $userId]);
+    $prof = $stmtProf->fetch();
+    
+    if (empty($prof['full_name']) || empty($prof['document_number'])) {
+        header("Location: profile.php?redirect=create_ad.php");
+        exit;
+    }
+} catch (PDOException $e) {
+    die("Error de Base de Datos (Perfil): " . $e->getMessage() . "<br>Asegúrate de haber ejecutado el SQL para agregar 'full_name' y 'document_number' a la tabla 'users'.");
+}
+
+// --- 2. OBTENER PRECIOS MÍNIMOS DEL ADMIN ---
 $min_cpc = 200;
 $min_cpm = 5000;
 try {
@@ -63,8 +85,8 @@ if (!$modo_edicion) {
         'max_clicks' => 500,
         'offer_cpc' => $min_cpc,
         'offer_cpm' => $min_cpm,
-        'freq_max_views' => 3, // Default: 3 veces
-        'freq_reset_hours' => 6, // Default: Cada 6 horas
+        'freq_max_views' => 3, 
+        'freq_reset_hours' => 6,
         'logo_url' => ''
     ];
 }
@@ -94,7 +116,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $cpc_input = (float)$_POST['offer_cpc'];
         $cpm_input = (float)$_POST['offer_cpm'];
         
-        if ($cpc_input < $min_cpc || $cpm_input < $min_cpm) {
+        // Validación con tolerancia mínima para evitar errores de decimales
+        if ($cpc_input < ($min_cpc - 0.01) || $cpm_input < ($min_cpm - 0.01)) {
              $mensaje_estado = "La oferta no puede ser menor al mínimo ($$min_cpc CPC / $$min_cpm CPM).";
              $es_error = true;
         } else {
@@ -143,7 +166,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>Gestor de Anuncio</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"> 
+    <title>Gestor de Anuncio</title>
     <style>
         body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; padding: 20px; margin: 0; }
         .container { max-width: 1100px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 5px 15px rgba(0,0,0,0.05); }
@@ -268,11 +292,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     <div class="section-box offer-box">
                         <div class="section-title">💰 Tu Oferta (Subasta)</div>
                         <p class="offer-help">
-                            El sistema prioriza los anuncios que pagan más. Define tu oferta base por click y visualización.
+                            El sistema prioriza los anuncios que pagan más. Define tu oferta base por cada click recibo y cada visualización de tu anuncio.
                         </p>
 
                         <div class="form-group">
-                            <label>Costo por Clic (CPC) - Mín: $<?= number_format($min_cpc) ?></label>
+                            <label>Define cuanto pagarás por Clic (CPC) - Mín: $<?= number_format($min_cpc) ?></label>
                             <input type="number" name="offer_cpc" min="<?= $min_cpc ?>" step="10" required value="<?= $datos_form['offer_cpc'] ?? $min_cpc ?>">
                         </div>
 
