@@ -1,9 +1,9 @@
 <?php
 /**
  * buscar.php
- * * Procesador del formulario de búsqueda.
- * Recibe POST y redirige a la URL amigable (SEO-Friendly) en el formato:
- * /pico-y-placa/ciudad-dia-de-mes-de-ano/tipo
+ * Procesador del formulario de búsqueda.
+ * Corrección V17: Genera URLs compatibles con la nueva estructura SEO.
+ * Estructura: /pico-y-placa/ciudad-dia-de-mes-de-ano?tipo=vehiculo
  */
 
 // 1. Configuración y utilidades
@@ -70,19 +70,24 @@ if (!$mes_nombre) {
     redirigir('/?error=mes_invalido');
 }
 
-// 5. Construcción de la URL y Redirección
+// 5. Construcción de la URL y Redirección (CORREGIDO)
 // ----------------------------------------------------------------------
 
-// NUEVA URL SEO-Friendly: /pico-y-placa/bogota-28-de-noviembre-de-2025/particulares
+// Generamos la URL base limpia (Sin el tipo al final de la ruta)
+// Ejemplo: /pico-y-placa/bogota-4-de-diciembre-de-2025
 $url_amigable = sprintf(
-    '/pico-y-placa/%s-%d-de-%s-de-%s/%s',
+    '/pico-y-placa/%s-%d-de-%s-de-%s',
     $ciudad,
     $dia,
     $mes_nombre,
-    $ano,
-    $tipo // El tipo de vehículo ahora va en el slug
+    $ano
 );
 
-redirigir($url_amigable);
+// Si el tipo NO es particulares (el por defecto), lo agregamos como parámetro
+// Esto evita la redirección 301 del .htaccess y carga la info correcta.
+if ($tipo !== 'particulares') {
+    $url_amigable .= '?tipo=' . $tipo;
+}
 
+redirigir($url_amigable);
 ?>
