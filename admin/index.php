@@ -1,23 +1,16 @@
 <?php
 /**
- * admin/index.php - Panel Central de Gestión de Campañas (CON ACCIONES)
- * Responsivo para PC y Móvil.
+ * admin/index.php - Gestión Central de Campañas (Responsivo V2)
  */
 session_start();
-// Asegurar que la conexión a la BD y la sesión de PHP estén activas
-require_once 'auth.php';
 require_once 'db_connect.php'; 
 
-// 1. Verificación de Rol (CRÍTICO: Solo Admin)
 if (!isset($_SESSION['user_id']) || $_SESSION['user_role'] !== 'admin') {
     header("Location: ../user/login.php");
     exit;
 }
 
-// 2. LÓGICA DE GESTIÓN (IDLE O DESPUÉS DE UNA ACCIÓN)
-$mostrar_reportes = isset($_GET['view']) && $_GET['view'] === 'reports';
-
-// Consulta para obtener TODOS los banners para gestión
+// Consulta Banners
 try {
     $stmt = $pdo->prepare("
         SELECT 
@@ -26,19 +19,13 @@ try {
             COALESCE(SUM(CASE WHEN be.event_type = 'click' THEN 1 ELSE 0 END), 0) AS total_clicks
         FROM banners b
         LEFT JOIN banner_events be ON b.id = be.banner_id
-        GROUP BY b.id, b.titulo, b.city_slugs, b.posicion, b.is_active, b.is_approved
+        GROUP BY b.id
         ORDER BY b.is_active DESC, b.id ASC
     ");
     $stmt->execute();
     $campanas = $stmt->fetchAll(PDO::FETCH_ASSOC);
+} catch (PDOException $e) { $campanas = []; }
 
-} catch (PDOException $e) {
-    error_log("DB Error fetching dashboard data: " . $e->getMessage());
-    $campanas = [];
-    $error = "Error al cargar los datos de las campañas.";
-}
-
-// Manejo de mensajes de estado desde actions.php
 $status_message = $_GET['msg'] ?? null;
 $status_type = $_GET['status'] ?? null;
 ?>
@@ -46,161 +33,134 @@ $status_type = $_GET['status'] ?? null;
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gestión de Banners - Panel Central</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"> <title>Admin Banners</title>
     <style>
-        /* Estilos Base y Responsividad Móvil */
-        body { font-family: sans-serif; padding: 20px; background-color: #f4f7f6; margin: 0; }
-        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        /* --- ESTILOS BASE (PC) --- */
+        body { font-family: 'Segoe UI', sans-serif; background: #f4f7f6; padding: 20px; margin: 0; }
+        .container { max-width: 1200px; margin: 0 auto; background: white; padding: 25px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
         
-        /* Encabezado y Acciones */
-        h1 { color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 10px; margin-bottom: 20px; font-size: 1.8em; }
-        .actions-header { 
-            display: flex; 
-            flex-wrap: wrap; 
-            justify-content: space-between; 
-            align-items: center; 
-            margin-bottom: 20px; 
-            gap: 10px;
-        }
-        .actions-header div { 
-            display: flex; 
-            flex-wrap: wrap;
-            gap: 8px; 
-        }
+        h1 { color: #2c3e50; margin-bottom: 20px; border-bottom: 2px solid #3498db; padding-bottom: 10px; font-size: 1.8em; }
         
-        /* Botones de Acción */
-        .btn-action, .btn-new { 
-            padding: 8px 12px; 
-            text-decoration: none; 
-            border-radius: 4px; 
-            font-weight: bold; 
-            font-size: 0.9em; 
-            transition: background-color 0.2s;
-        }
-        .btn-new { background-color: #2ecc71; color: white; }
-        .btn-moderacion { background-color: #e74c3c; color: white; }
-        .btn-gestion-users { background-color: #3498db; color: white; }
-
-        /* Estilos de Tabla */
-        .table-wrapper { 
-            overflow-x: auto; /* CRÍTICO: Permite hacer scroll horizontal en móviles */
-            width: 100%;
-        }
-        table { 
-            width: 100%; 
-            min-width: 800px; /* Asegura que la tabla no se colapse */
-            border-collapse: collapse; 
-            margin-top: 20px; 
-        }
-        th, td { 
-            padding: 12px 15px; 
-            border: 1px solid #ddd; 
-            text-align: left; 
-            font-size: 0.85em; 
-        }
-        th { background-color: #3498db; color: white; }
-
-        /* Estilos de Estado */
-        .active-status { background-color: #e6f7e9; color: #27ae60; font-weight: bold; }
-        .inactive-status { background-color: #fcebeb; color: #c0392b; font-weight: bold; }
-        .pending-status { background-color: #fff8e1; color: #f39c12; font-weight: bold; }
+        /* Botonera Superior */
+        .actions-header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px; margin-bottom: 25px; }
+        .btn-group { display: flex; gap: 10px; flex-wrap: wrap; }
         
-        /* Botones de Fila */
-        .btn-toggle-off { background-color: #e74c3c; color: white; }
-        .btn-toggle-on { background-color: #2ecc71; color: white; }
-        .btn-edit { background-color: #3498db; color: white; }
-        .btn-action-sm { padding: 5px 8px; text-decoration: none; border-radius: 3px; font-size: 0.8em; margin-right: 5px; }
+        .btn-action { padding: 10px 15px; text-decoration: none; border-radius: 6px; font-weight: 600; color: white; font-size: 0.9em; transition: 0.2s; border:none; cursor: pointer; display: inline-flex; align-items: center; gap: 5px; }
+        .btn-blue { background: #3498db; }
+        .btn-green { background: #2ecc71; }
+        .btn-red { background: #e74c3c; }
+        .btn-purple { background: #8e44ad; }
+        .btn-action:hover { opacity: 0.9; transform: translateY(-1px); }
 
         /* Mensajes */
-        .status-message { padding: 10px; border-radius: 4px; margin-bottom: 20px; font-weight: bold; }
-        .success-msg { background-color: #d4edda; color: #155724; }
-        .error-msg { background-color: #f8d7da; color: #721c24; }
+        .status-msg { padding: 15px; border-radius: 6px; margin-bottom: 20px; font-weight: bold; text-align: center; }
+        .msg-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .msg-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+
+        /* --- TABLA RESPONSIVA (La Magia) --- */
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th { background: #3498db; color: white; padding: 12px; text-align: left; }
+        td { padding: 12px; border-bottom: 1px solid #eee; color: #555; vertical-align: middle; }
+        
+        /* Botones dentro de la tabla */
+        .action-buttons { display: flex; gap: 5px; flex-wrap: wrap; }
+        .btn-sm { padding: 6px 10px; font-size: 0.85em; }
+
+        /* --- VISTA MÓVIL (Card View) --- */
+        @media (max-width: 768px) {
+            /* Ocultar cabeceras de tabla */
+            thead { display: none; }
+            
+            /* Convertir filas en tarjetas */
+            tr { display: block; background: #fff; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 15px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); padding: 15px; }
+            
+            /* Convertir celdas en renglones */
+            td { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #eee; padding: 10px 0; text-align: right; }
+            td:last-child { border-bottom: none; flex-direction: column; align-items: stretch; gap: 10px; margin-top: 10px; }
+
+            /* Poner etiquetas (Labels) usando el atributo data-label */
+            td::before { content: attr(data-label); font-weight: bold; color: #2c3e50; text-align: left; margin-right: 15px; }
+            
+            /* Ajustar botones en móvil */
+            .action-buttons { justify-content: space-between; width: 100%; }
+            .btn-sm { flex: 1; text-align: center; justify-content: center; padding: 10px; }
+            
+            /* Ajuste contenedor general */
+            body { padding: 10px; }
+            .container { padding: 15px; }
+            .actions-header { flex-direction: column; align-items: stretch; }
+            .btn-group { flex-direction: column; }
+            .btn-action { justify-content: center; }
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="actions-header">
-            <h1>Gestión Central de Campañas ⚙️</h1>
-            <div>
-                <a href="user_management.php" class="btn-action btn-gestion-users">👥 Gestión Usuarios</a>
-                <a href="moderation.php" class="btn-action btn-moderacion">🚨 Moderación (Aprobar)</a>
-                <a href="reports.php" class="btn-action btn-gestion-users">Ver Reportes Detallados</a>
-                <a href="form.php" class="btn-new">➕ Crear Nuevo Banner</a>
+            <h1>Admin Panel ⚙️</h1>
+            <div class="btn-group">
+                <a href="user_management.php" class="btn-action btn-blue">👥 Usuarios</a>
+                <a href="moderation.php" class="btn-action btn-red">🚨 Moderación</a>
+                <a href="reports.php" class="btn-action btn-blue">📊 Reportes</a>
+                <a href="settings.php" class="btn-action btn-purple">⚙️ Configuración</a>
+                <a href="form.php" class="btn-action btn-green">➕ Crear</a>
+				<a href="../user/logout.php" class="btn-action btn-red" style="margin-left:auto;">🚪 Salir</a>
+				<a href="tickets.php" class="btn-action btn-purple">💬 Tickets Soporte</a>
             </div>
         </div>
 
         <?php if ($status_message): ?>
-            <div class="status-message <?= $status_type === 'success' ? 'success-msg' : 'error-msg' ?>">
+            <div class="status-msg <?= $status_type === 'success' ? 'msg-success' : 'msg-error' ?>">
                 <?= htmlspecialchars(urldecode($status_message)) ?>
             </div>
         <?php endif; ?>
-        
-        <?php if (isset($error)): ?>
-             <div class="error-msg status-message"><?= htmlspecialchars($error) ?></div>
-        <?php endif; ?>
 
-        <div class="table-wrapper">
-            <table>
-                <thead>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Título</th>
+                    <th>Ciudades</th>
+                    <th>Impresiones</th>
+                    <th>Clicks</th>
+                    <th>Estado</th>
+                    <th>Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if (empty($campanas)): ?>
+                    <tr><td colspan="7" style="text-align:center;">Sin datos.</td></tr>
+                <?php else: ?>
+                    <?php foreach ($campanas as $c): ?>
                     <tr>
-                        <th>ID</th>
-                        <th>Título</th>
-                        <th>Ciudades</th>
-                        <th>Posición</th>
-                        <th>Impresiones</th>
-                        <th>Clicks</th>
-                        <th>Estado</th>
-                        <th>Aprobación</th>
-                        <th>Acciones</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php if (empty($campanas)): ?>
-                        <tr><td colspan="9" style="text-align:center;">No hay campañas registradas.</td></tr>
-                    <?php else: ?>
-                        <?php foreach ($campanas as $c): ?>
-                        <?php 
-                            $status_class = 'inactive-status';
-                            $status_text = 'INACTIVO';
-                            $approval_text = 'Pendiente';
-                            
-                            if ($c['is_approved']) {
-                                $approval_text = 'Aprobado';
-                                if ($c['is_active']) {
-                                    $status_class = 'active-status';
-                                    $status_text = 'ACTIVO';
-                                } else {
-                                    $status_class = 'inactive-status';
-                                    $status_text = 'PAUSADO';
-                                }
-                            } else {
-                                $status_class = 'pending-status';
-                            }
-                        ?>
-                        <tr class="<?= $status_class ?>">
-                            <td><?= $c['id'] ?></td>
-                            <td><?= htmlspecialchars($c['titulo']) ?></td>
-                            <td><?= str_replace(',', ', ', htmlspecialchars($c['city_slugs'])) ?></td>
-                            <td><?= ucfirst($c['posicion']) ?></td>
-                            <td><?= number_format($c['total_impresiones'], 0, ',', '.') ?></td>
-                            <td><?= number_format($c['total_clicks'], 0, ',', '.') ?></td>
-                            <td><?= $status_text ?></td>
-                            <td><?= $approval_text ?></td>
-                            <td>
-                                <a href="form.php?id=<?= $c['id'] ?>" class="btn-action-sm btn-edit">Editar</a>
+                        <td data-label="ID">#<?= $c['id'] ?></td>
+                        <td data-label="Título"><strong><?= htmlspecialchars($c['titulo']) ?></strong></td>
+                        <td data-label="Ciudades"><small><?= str_replace(',', ', ', htmlspecialchars($c['city_slugs'])) ?></small></td>
+                        <td data-label="Impresiones"><?= number_format($c['total_impresiones']) ?></td>
+                        <td data-label="Clicks"><?= number_format($c['total_clicks']) ?></td>
+                        <td data-label="Estado">
+                            <?php if($c['is_active']): ?>
+                                <span style="color:green; font-weight:bold;">● Activo</span>
+                            <?php else: ?>
+                                <span style="color:red; font-weight:bold;">● Inactivo</span>
+                            <?php endif; ?>
+                        </td>
+                        <td data-label="Acciones">
+                            <div class="action-buttons">
+                                <a href="form.php?id=<?= $c['id'] ?>" class="btn-action btn-blue btn-sm">✏️ Editar</a>
                                 <?php if ($c['is_active']): ?>
-                                    <a href="actions.php?action=deactivate&id=<?= $c['id'] ?>" class="btn-action-sm btn-toggle-off">Desactivar</a>
+                                    <a href="actions.php?action=deactivate&id=<?= $c['id'] ?>" class="btn-action btn-red btn-sm">⏸ Pausar</a>
                                 <?php else: ?>
-                                    <a href="actions.php?action=activate&id=<?= $c['id'] ?>" class="btn-action-sm btn-toggle-on">Activar</a>
+                                    <a href="actions.php?action=activate&id=<?= $c['id'] ?>" class="btn-action btn-green btn-sm">▶ Activar</a>
                                 <?php endif; ?>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
-                    <?php endif; ?>
-                </tbody>
-            </table>
-        </div>
+                                <a href="actions.php?action=delete&id=<?= $c['id'] ?>" class="btn-action btn-red btn-sm" onclick="return confirm('¿Eliminar?');">🗑️</a>
+                            </div>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </tbody>
+        </table>
     </div>
 </body>
 </html>
