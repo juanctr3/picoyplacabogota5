@@ -1,0 +1,7 @@
+{
+    "require": {
+        "epayco/epayco-php": "^1.9",
+        "mercadopago/dx-php": "^3.8",
+        "phpmailer/phpmailer": "^7.0"
+    }
+}

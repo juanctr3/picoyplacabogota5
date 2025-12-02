@@ -745,5 +745,43 @@ for ($i = 0; $i < 30; $i++) {
             if(grid.style.display==='none') grid.style.display='grid'; else grid.style.display='none';
         }
     </script>
+
+<style>
+    .main-footer {
+        background: #2c3e50;
+        color: white;
+        text-align: center;
+        padding: 15px 0;
+        margin-top: 40px;
+        font-family: 'Segoe UI', sans-serif;
+        font-size: 0.9em;
+    }
+    .main-footer a {
+        color: #f1c40f;
+        text-decoration: none;
+        font-weight: bold;
+        transition: color 0.3s;
+    }
+    .main-footer a:hover {
+        color: #fff;
+        text-decoration: underline;
+    }
+    .footer-content {
+        display: flex;
+        justify-content: center;
+        gap: 20px;
+        flex-wrap: wrap;
+    }
+</style>
+
+<footer class="main-footer">
+    <div class="footer-content">
+        <span>&copy; <?= date('Y') ?> PicoYPlaca Bogotá</span>
+        <span>|</span>
+        <a href="https://picoyplacabogota.com.co/user/login.php">📢 Anuncie Aquí</a>
+        <span>|</span>
+        <a href="/contacto.php">Contacto</a>
+    </div>
+</footer>
 </body>
 </html>
