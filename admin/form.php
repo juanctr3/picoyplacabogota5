@@ -246,10 +246,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                     <div class="form-grid" style="gap:15px;">
                         <div class="form-group">
                             <label>Posición</label>
-                            <select name="posicion">
-                                <option value="top" <?= ($datos_form['posicion']??'')=='top'?'selected':'' ?>>Arriba (Header)</option>
-                                <option value="bottom" <?= ($datos_form['posicion']??'')=='bottom'?'selected':'' ?>>Abajo (Footer)</option>
-                            </select>
+                            <div class="form-group">
+    <label>Posición</label>
+    <select name="posicion">
+        <option value="top" <?= ($datos_form['posicion']??'')=='top'?'selected':'' ?>>Arriba (Header)</option>
+        <option value="bottom" <?= ($datos_form['posicion']??'')=='bottom'?'selected':'' ?>>Abajo (Footer)</option>
+        <option value="both" <?= ($datos_form['posicion']??'')=='both'?'selected':'' ?>>⭐ Ambas (Más visibilidad)</option>
+    </select>
+</div>
                         </div>
                         <div class="form-group">
                             <label>Duración (ms)</label>

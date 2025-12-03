@@ -106,6 +106,7 @@ $status_type = $_GET['status'] ?? null;
                 <a href="form.php" class="btn-action btn-green">➕ Crear</a>
 				<a href="../user/logout.php" class="btn-action btn-red" style="margin-left:auto;">🚪 Salir</a>
 				<a href="tickets.php" class="btn-action btn-purple">💬 Tickets Soporte</a>
+    			<a href="clear_cache.php" class="btn-action btn-red" style="background:#e67e22;">🧹 Limpiar Caché</a>
             </div>
         </div>
 
