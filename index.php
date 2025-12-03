@@ -1,7 +1,7 @@
 <?php
 /**
  * index.php
- * Versión 19.0 - Footer Restaurado + SEO H1/H2/H3 + Fix Mañana
+ * Versión 22.0 - Mensajes Humanos, Divertidos y Contextuales
  */
 
 // 1. Configuración inicial
@@ -13,7 +13,7 @@ ini_set('display_errors', 0);
 require_once 'config-ciudades.php';
 require_once 'clases/PicoYPlaca.php';
 
-// --- 1.1 AUTO-GENERADOR DE SITEMAP (45 Días) ---
+// --- 1.1 AUTO-GENERADOR DE SITEMAP ---
 $sitemapFile = __DIR__ . '/sitemap.xml';
 if (!file_exists($sitemapFile) || date('Y-m-d', filemtime($sitemapFile)) !== date('Y-m-d')) {
     $BASE_URL_SM = 'https://picoyplacabogota.com.co'; 
@@ -59,21 +59,20 @@ $DEFAULT_CIUDAD_URL = 'bogota';
 $DEFAULT_TIPO_URL = 'particulares';
 $MULTA_VALOR = '650.000'; 
 $BASE_URL = 'https://picoyplacabogota.com.co';
+$SITIO_NOMBRE = 'PicoYPlacaBogota.com.co';
 
 $MESES = ['01'=>'enero','02'=>'febrero','03'=>'marzo','04'=>'abril','05'=>'mayo','06'=>'junio','07'=>'julio','08'=>'agosto','09'=>'septiembre','10'=>'octubre','11'=>'noviembre','12'=>'diciembre'];
 $MESES_CORTOS = ['01'=>'Ene','02'=>'Feb','03'=>'Mar','04'=>'Abr','05'=>'May','06'=>'Jun','07'=>'Jul','08'=>'Ago','09'=>'Sep','10'=>'Oct','11'=>'Nov','12'=>'Dic'];
 $DIAS_SEMANA = [1=>'lunes',2=>'martes',3=>'miércoles',4=>'jueves',5=>'viernes',6=>'sábado',7=>'domingo'];
 
-// Lógica de Enrutamiento
+// Enrutamiento
 $es_busqueda = false;
 $special_slug = $_GET['special_slug'] ?? null; 
-
 $ciudad_busqueda = $_GET['ciudad_slug'] ?? $DEFAULT_CIUDAD_URL;
 $tipo_busqueda = $_GET['tipo'] ?? $DEFAULT_TIPO_URL; 
 $fecha_busqueda = $HOY;
 $canonical_url = $BASE_URL;
 
-// --- DEFINICIÓN DE FECHA Y URL ---
 if ($special_slug === 'hoy') {
     $es_busqueda = true;
     $fecha_busqueda = $HOY;
@@ -83,7 +82,6 @@ if ($special_slug === 'hoy') {
 
 } elseif ($special_slug === 'manana') {
     $es_busqueda = true;
-    // Forzar fecha de mañana
     $fecha_busqueda = date('Y-m-d', strtotime('+1 day')); 
     $ciudad_busqueda = 'bogota';
     $canonical_url = $BASE_URL . "/pico-y-placa-bogota-mañana";
@@ -109,18 +107,23 @@ if (!isset($ciudades[$ciudad_busqueda]['tipos'][$tipo_busqueda])) {
     $tipo_busqueda = array_key_first($ciudades[$ciudad_busqueda]['tipos']);
 }
 
+// Consultar Restricción
 $resultados = $picoYPlaca->obtenerRestriccion($ciudad_busqueda, $fecha_busqueda, $tipo_busqueda);
 $nombre_festivo = $resultados['festivo'] ?? null;
 
-// Textos SEO Dinámicos
+// Datos para textos
 $nombre_ciudad = $ciudades[$ciudad_busqueda]['nombre'];
 $nombre_tipo = $ciudades[$ciudad_busqueda]['tipos'][$tipo_busqueda]['nombre_display'];
-$dt = new DateTime($fecha_busqueda);
+$horario_texto = $resultados['horario'];
+$horas_parts = explode('-', $horario_texto);
+$hora_ini = trim($horas_parts[0] ?? 'inicio');
+$hora_fin = trim($horas_parts[1] ?? 'fin');
 
+$dt = new DateTime($fecha_busqueda);
 $dia_nombre = ucfirst($DIAS_SEMANA[$dt->format('N')]); 
 $mes_nombre = ucfirst($MESES[$dt->format('m')]);       
 $mes_corto  = ucfirst($MESES_CORTOS[$dt->format('m')]); 
-$dia_num    = $dt->format('j'); // Sin cero inicial (1-31)                       
+$dia_num    = $dt->format('j');                        
 $anio       = $dt->format('Y');                        
 
 $fecha_texto = "$dia_nombre, $dia_num de $mes_nombre de $anio";
@@ -138,24 +141,51 @@ $keywords_list = [
 ];
 $meta_keywords = implode(", ", $keywords_list);
 
-// Títulos optimizados
+// Títulos SEO
 if ($special_slug === 'hoy') {
-    $titulo_h1_largo = "Pico y Placa $nombre_ciudad HOY";
-    $page_title = "Pico y Placa $nombre_ciudad HOY: $fecha_seo_corta | Restricción";
-    $meta_description = "Consulta el Pico y Placa en $nombre_ciudad para HOY $fecha_texto.";
+    $titulo_h1_largo = "Pico y Placa $nombre_ciudad HOY $anio";
+    $page_title = "Pico y Placa $nombre_ciudad HOY ($fecha_seo_corta $anio)";
+    $meta_description = "Consulta el Pico y Placa en $nombre_ciudad para HOY $fecha_texto. Placas restringidas: " . implode('-', $resultados['restricciones']) . ".";
 } elseif ($special_slug === 'manana') {
-    $titulo_h1_largo = "Pico y Placa Mañana $fecha_seo_corta";
-    $page_title = "Pico y Placa Mañana $fecha_seo_corta ($nombre_ciudad)";
-    $meta_description = "Prepárate para mañana: Pico y Placa en $nombre_ciudad el $fecha_texto.";
+    $titulo_h1_largo = "Pico y Placa Mañana $fecha_seo_corta $anio";
+    $page_title = "Pico y Placa Mañana $nombre_ciudad ($fecha_seo_corta $anio)";
+    $meta_description = "Prepárate para mañana: Pico y Placa en $nombre_ciudad el $fecha_texto. Placas con restricción: " . implode('-', $resultados['restricciones']) . ".";
 } else {
-    $titulo_h1_largo = "Pico y Placa $nombre_ciudad: $fecha_seo_corta";
-    $page_title = "Pico y Placa $nombre_ciudad $fecha_seo_corta | $nombre_tipo";
-    $meta_description = "Información oficial Pico y Placa $nombre_ciudad para el $fecha_texto.";
+    $titulo_h1_largo = "Pico y Placa $nombre_ciudad: $fecha_seo_corta $anio";
+    $page_title = "Pico y Placa $nombre_ciudad $fecha_seo_corta $anio | $nombre_tipo";
+    $meta_description = "Información oficial Pico y Placa $nombre_ciudad para el $fecha_texto. Placas: " . implode('-', $resultados['restricciones']) . ".";
+}
+
+// --- GENERACIÓN DEL MENSAJE HUMANO Y CERCANO ---
+// Definimos el tiempo verbal y referencia
+$referencia_tiempo = "Hoy";
+$verbo_poder = "puedes";
+$verbo_ser = "es";
+
+if ($special_slug === 'manana') {
+    $referencia_tiempo = "Mañana";
+    $verbo_poder = "podrás";
+    $verbo_ser = "será";
+} elseif ($fecha_busqueda !== $HOY) {
+    $referencia_tiempo = "Este día";
+    $verbo_poder = "podrás";
+    $verbo_ser = "será";
+}
+
+if ($nombre_festivo) {
+    // CASO 1: FESTIVO
+    $mensaje_humano = "¡Qué maravilla! $referencia_tiempo <strong>$dia_nombre</strong> $verbo_ser Festivo 🎉. Desempolva tu carrito o ve a lavarlo 🧼 y anda tranquilo(a) porque no hay Pico y Placa para <strong style='color:#fff; text-decoration:underline;'>$nombre_tipo</strong> en <strong>$nombre_ciudad</strong>.";
+} elseif (!$resultados['hay_pico']) {
+    // CASO 2: NO APLICA (Fin de semana o exención)
+    $mensaje_humano = "$referencia_tiempo $verbo_poder circular relajado(a) 🥱, los polis duermen 👮‍♂️, porque es <strong>$dia_nombre</strong> y no aplica Pico y Placa para <strong style='color:#fff; text-decoration:underline;'>$nombre_tipo</strong> en <strong>$nombre_ciudad</strong>.";
+} else {
+    // CASO 3: RESTRICCIÓN (Mensaje útil)
+    $mensaje_humano = "¡Que no te lo partan... el día! El Pico y Placa de <strong style='color:#fff; text-decoration:underline;'>$nombre_tipo</strong> va desde las <strong>$hora_ini</strong> hasta las <strong>$hora_fin</strong> en <strong>$nombre_ciudad</strong>. Infórmate siempre con $SITIO_NOMBRE.";
 }
 
 $body_class_mode = ($es_busqueda) ? 'search-mode' : 'home-mode';
 
-// Lógica Visual
+// Lógica de Estado y Reloj
 $es_restriccion_activa = false; 
 $ya_paso_restriccion_hoy = false; 
 
@@ -327,7 +357,9 @@ for ($i = 0; $i < 30; $i++) {
         <div class="header-content">
             <span class="car-icon">🚗</span>
             <h1 class="app-title"><?= $titulo_h1_largo ?></h1>
-            <p class="app-subtitle">Info para <strong style="color:#000000; text-transform:uppercase;"><?= $nombre_tipo ?></strong></p>
+            <p class="app-subtitle" style="line-height:1.5; font-size:0.95rem; margin-top:10px; max-width:600px; margin-left:auto; margin-right:auto;">
+                <?= $mensaje_humano ?>
+            </p>
         </div>
     </header>
 

@@ -1,10 +1,23 @@
-# .htaccess V19.0 - Full SEO & Fix Mañana
+# .htaccess V20.0 - Fix Index.php/html + SEO Full
 <IfModule mod_rewrite.c>
     RewriteEngine On
     RewriteBase /
 
     # ----------------------------------------------------------------------
-    # 1. URLs ESTRATÉGICAS (HOY / MAÑANA) - FIX DEFINITIVO Ñ
+    # 0. LIMPIEZA DE HOME (FIX INDEX.PHP / INDEX.HTML) - NUEVO
+    # ----------------------------------------------------------------------
+    # Si alguien pide /index.php o /index.html explícitamente, mandar a la raíz /
+    
+    # Redirigir index.php a /
+    RewriteCond %{THE_REQUEST} ^.*/index\.php [NC]
+    RewriteRule ^(.*)index\.php$ /$1 [R=301,L]
+
+    # Redirigir index.html a / (Evita que urls viejas o errores generen contenido duplicado)
+    RewriteCond %{THE_REQUEST} ^.*/index\.html [NC]
+    RewriteRule ^(.*)index\.html$ /$1 [R=301,L]
+
+    # ----------------------------------------------------------------------
+    # 1. URLs ESTRATÉGICAS (HOY / MAÑANA)
     # ----------------------------------------------------------------------
     # Hoy
     RewriteRule ^pico-y-placa-bogota-hoy/?$ index.php?special_slug=hoy [L,QSA]
@@ -31,7 +44,7 @@
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteRule ^pico-y-placa/([a-z-]+)-([0-9]{1,2})-de-([a-z]+)-de-([0-9]{4})/?$ index.php?ciudad_slug=$1&dia=$2&mes_nombre=$3&ano=$4 [L,QSA]
 
-    # Fallback
+    # Fallback (Todo lo demás va a index.php)
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteRule ^(.*)$ index.php [L,QSA] 
