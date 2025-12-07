@@ -1,60 +1,69 @@
-# .htaccess V20.0 - Fix Index.php/html + SEO Full
+# .htaccess V22.0 FINAL - SEO Evergreen Multiciudad + Seguridad
 <IfModule mod_rewrite.c>
     RewriteEngine On
     RewriteBase /
 
     # ----------------------------------------------------------------------
-    # 0. LIMPIEZA DE HOME (FIX INDEX.PHP / INDEX.HTML) - NUEVO
+    # 0. LIMPIEZA DE HOME (EVITAR CONTENIDO DUPLICADO)
     # ----------------------------------------------------------------------
-    # Si alguien pide /index.php o /index.html explícitamente, mandar a la raíz /
-    
-    # Redirigir index.php a /
+    # Si alguien pide /index.php o /index.html, mandar a la raíz /
     RewriteCond %{THE_REQUEST} ^.*/index\.php [NC]
     RewriteRule ^(.*)index\.php$ /$1 [R=301,L]
-
-    # Redirigir index.html a / (Evita que urls viejas o errores generen contenido duplicado)
+    
     RewriteCond %{THE_REQUEST} ^.*/index\.html [NC]
     RewriteRule ^(.*)index\.html$ /$1 [R=301,L]
 
     # ----------------------------------------------------------------------
-    # 1. URLs ESTRATÉGICAS (HOY / MAÑANA)
+    # 1. URLs MAESTRAS (ESTRATEGIA EVERGREEN)
     # ----------------------------------------------------------------------
-    # Hoy
-    RewriteRule ^pico-y-placa-bogota-hoy/?$ index.php?special_slug=hoy [L,QSA]
     
-    # Mañana (Acepta: mañana, manana, ma%C3%B1ana)
-    RewriteRule ^pico-y-placa-bogota-ma(n|ñ|%C3%B1)ana/?$ index.php?special_slug=manana [L,QSA,NC]
+    # CASO ESPECIAL: Bogotá Hoy -> Redirigir al Home
+    # (Concentramos toda la autoridad de Bogotá en la raíz del dominio)
+    RewriteRule ^pico-y-placa-bogota-hoy/?$ / [R=301,L]
+
+    # REGLA GENÉRICA HOY (Para todas las demás ciudades)
+    # Ejemplo: /pico-y-placa-medellin-hoy -> index.php?ciudad=medellin&slug=hoy
+    RewriteRule ^pico-y-placa-([a-z-]+)-hoy/?$ index.php?ciudad_slug=$1&special_slug=hoy [L,QSA]
+    
+    # REGLA GENÉRICA MAÑANA (Para todas las ciudades)
+    # Acepta: mañana, manana, ma%C3%B1ana
+    RewriteRule ^pico-y-placa-([a-z-]+)-ma(n|ñ|%C3%B1)ana/?$ index.php?ciudad_slug=$1&special_slug=manana [L,QSA,NC]
 
     # ----------------------------------------------------------------------
     # 2. MIGRACIÓN SEO (REDIRECCIONES 301)
     # ----------------------------------------------------------------------
-    # Redirigir tráfico antiguo a la nueva estructura limpia
+    # Redirigir tráfico antiguo (con /particulares al final) a la nueva estructura limpia
     RewriteCond %{REQUEST_URI} ^/pico-y-placa/([a-z-]+)-([0-9]{1,2})-de-([a-z]+)-de-([0-9]{4})/(.+)$
     RewriteRule ^pico-y-placa/([a-z-]+)-([0-9]{1,2})-de-([a-z]+)-de-([0-9]{4})/(.+)$ https://picoyplacabogota.com.co/pico-y-placa/$1-$2-de-$3-de-$4 [R=301,L]
 
-    # Forzar HTTPS
+    # Forzar HTTPS (Seguridad)
     RewriteCond %{HTTPS} off
     RewriteRule ^(.*)$ https://picoyplacabogota.com.co/$1 [R=301,L]
 
     # ----------------------------------------------------------------------
-    # 3. ENRUTAMIENTO DE FECHAS (URL SIMPLIFICADA)
+    # 3. ENRUTAMIENTO DE FECHAS (LONG TAIL)
     # ----------------------------------------------------------------------
-    # Ejemplo: /pico-y-placa/bogota-4-de-diciembre-de-2025
+    # Maneja URLs específicas como: /pico-y-placa/cali-24-de-diciembre-2025
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteRule ^pico-y-placa/([a-z-]+)-([0-9]{1,2})-de-([a-z]+)-de-([0-9]{4})/?$ index.php?ciudad_slug=$1&dia=$2&mes_nombre=$3&ano=$4 [L,QSA]
 
-    # Fallback (Todo lo demás va a index.php)
+    # Fallback (Cualquier otra cosa va al index)
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteRule ^(.*)$ index.php [L,QSA] 
 
 </IfModule>
 
+# ----------------------------------------------------------------------
+# 4. OPTIMIZACIONES DE RENDIMIENTO (CACHÉ)
+# ----------------------------------------------------------------------
 <IfModule mod_headers.c>
     Header set Content-Type "text/html; charset=utf-8"
+    # Cachear imágenes, CSS y JS por 1 semana
     <FilesMatch "\.(css|js|png|jpg|jpeg|svg|ico)$">
         Header set Cache-Control "max-age=604800, public"
     </FilesMatch>
 </IfModule>
+
 AddDefaultCharset UTF-8

@@ -1,7 +1,7 @@
 <?php
 /**
  * index.php
- * Versión 22.0 - Mensajes Humanos, Divertidos y Contextuales
+ * Versión 34.0 - Fix Critical Ads (Restored data-city-slug)
  */
 
 // 1. Configuración inicial
@@ -66,42 +66,55 @@ $MESES_CORTOS = ['01'=>'Ene','02'=>'Feb','03'=>'Mar','04'=>'Abr','05'=>'May','06
 $DIAS_SEMANA = [1=>'lunes',2=>'martes',3=>'miércoles',4=>'jueves',5=>'viernes',6=>'sábado',7=>'domingo'];
 
 // Enrutamiento
-$es_busqueda = false;
+$es_busqueda = false; 
+$es_manana = false; 
+$es_hoy = false; 
 $special_slug = $_GET['special_slug'] ?? null; 
 $ciudad_busqueda = $_GET['ciudad_slug'] ?? $DEFAULT_CIUDAD_URL;
 $tipo_busqueda = $_GET['tipo'] ?? $DEFAULT_TIPO_URL; 
 $fecha_busqueda = $HOY;
 $canonical_url = $BASE_URL;
 
+// Lógica de detección de búsqueda
 if ($special_slug === 'hoy') {
     $es_busqueda = true;
+    $es_hoy = true;
     $fecha_busqueda = $HOY;
-    $ciudad_busqueda = 'bogota'; 
-    $canonical_url = $BASE_URL . "/pico-y-placa-bogota-hoy";
+    $ciudad_busqueda = $_GET['ciudad_slug'] ?? 'bogota'; 
+    if ($ciudad_busqueda === 'bogota') {
+        $canonical_url = $BASE_URL . "/pico-y-placa-bogota-hoy";
+    }
     if(isset($_GET['tipo'])) $tipo_busqueda = $_GET['tipo'];
 
 } elseif ($special_slug === 'manana') {
     $es_busqueda = true;
+    $es_manana = true;
     $fecha_busqueda = date('Y-m-d', strtotime('+1 day')); 
-    $ciudad_busqueda = 'bogota';
+    $ciudad_busqueda = 'bogota'; 
     $canonical_url = $BASE_URL . "/pico-y-placa-bogota-mañana";
     if(isset($_GET['tipo'])) $tipo_busqueda = $_GET['tipo'];
 
 } elseif (isset($_GET['dia']) && isset($_GET['mes_nombre']) && isset($_GET['ano'])) {
     $es_busqueda = true;
-    $mes_num = array_search($_GET['mes_nombre'], $MESES);
+    $mes_num = array_search(strtolower($_GET['mes_nombre']), $MESES); 
     if ($mes_num) {
         $fecha_busqueda = $_GET['ano'].'-'.$mes_num.'-'.str_pad($_GET['dia'], 2, '0', STR_PAD_LEFT);
         $slug_fecha = sprintf('%d-de-%s-de-%s', $_GET['dia'], $_GET['mes_nombre'], $_GET['ano']);
         $canonical_url = $BASE_URL . "/pico-y-placa/{$ciudad_busqueda}-{$slug_fecha}";
+        if ($fecha_busqueda === $HOY) {
+            $es_hoy = true;
+        }
     }
 } else {
+     // HOME
      if ($fecha_busqueda === $HOY && $ciudad_busqueda === $DEFAULT_CIUDAD_URL && $tipo_busqueda === $DEFAULT_TIPO_URL) {
-        $es_busqueda = false;
+        $es_busqueda = false; 
+        $es_hoy = true; 
         $canonical_url = $BASE_URL . "/";
     }
 }
 
+// Validaciones
 if (!array_key_exists($ciudad_busqueda, $ciudades)) $ciudad_busqueda = $DEFAULT_CIUDAD_URL;
 if (!isset($ciudades[$ciudad_busqueda]['tipos'][$tipo_busqueda])) {
     $tipo_busqueda = array_key_first($ciudades[$ciudad_busqueda]['tipos']);
@@ -111,153 +124,111 @@ if (!isset($ciudades[$ciudad_busqueda]['tipos'][$tipo_busqueda])) {
 $resultados = $picoYPlaca->obtenerRestriccion($ciudad_busqueda, $fecha_busqueda, $tipo_busqueda);
 $nombre_festivo = $resultados['festivo'] ?? null;
 
-// Datos para textos
 $nombre_ciudad = $ciudades[$ciudad_busqueda]['nombre'];
 $nombre_tipo = $ciudades[$ciudad_busqueda]['tipos'][$tipo_busqueda]['nombre_display'];
-$horario_texto = $resultados['horario'];
-$horas_parts = explode('-', $horario_texto);
-$hora_ini = trim($horas_parts[0] ?? 'inicio');
-$hora_fin = trim($horas_parts[1] ?? 'fin');
 
 $dt = new DateTime($fecha_busqueda);
 $dia_nombre = ucfirst($DIAS_SEMANA[$dt->format('N')]); 
-$mes_nombre = ucfirst($MESES[$dt->format('m')]);       
-$mes_corto  = ucfirst($MESES_CORTOS[$dt->format('m')]); 
-$dia_num    = $dt->format('j');                        
-$anio       = $dt->format('Y');                        
-
-$fecha_texto = "$dia_nombre, $dia_num de $mes_nombre de $anio";
+$mes_nombre = ucfirst($MESES[$dt->format('m')]);        
+$mes_nombre_min = $MESES[$dt->format('m')]; 
+$dia_num    = $dt->format('j');                         
+$anio       = $dt->format('Y');                         
+$fecha_texto_largo = "$dia_nombre, $dia_num de $mes_nombre de $anio";
 $fecha_seo_corta = "$dia_num de $mes_nombre"; 
 
-$keywords_list = [
-    "pico y placa $nombre_ciudad $dia_num de $mes_nombre",
-    "restricción vehicular $nombre_ciudad $dia_num de $mes_nombre",
-    "horario pico y placa $nombre_ciudad",
-    "pico y placa mañana $nombre_ciudad",
-    "placas pico y placa $dia_num de $mes_nombre",
-    "multas pico y placa $nombre_ciudad",
-    "pico y placa taxis $nombre_ciudad $dia_num de $mes_nombre",
-    "excepciones pico y placa $nombre_ciudad"
-];
+$d_hoy_link = date('j');
+$m_hoy_link = $MESES[date('m')];
+$a_hoy_link = date('Y');
+$url_hoy_dinamica = "/pico-y-placa/{$ciudad_busqueda}-{$d_hoy_link}-de-{$m_hoy_link}-de-{$a_hoy_link}";
+
+$hora_ini_txt = "6:00 AM"; $hora_fin_txt = "9:00 PM";
+if ($resultados['hay_pico']) {
+    $rangos = $ciudades[$ciudad_busqueda]['tipos'][$tipo_busqueda]['rangos_horarios_php'] ?? [];
+    if (!empty($rangos)) {
+        $hora_ini_txt = $rangos[0]['inicio'];
+        $ultimo_rango = end($rangos);
+        $hora_fin_txt = $ultimo_rango['fin'];
+    }
+}
+
+// --- SEO TEXTOS ---
+$main_keyword = "Pico y Placa $nombre_ciudad"; 
+$search_description_text = "";
+$search_target_ts = 0;
+$reloj_label_dinamico = "FALTA:"; 
+
+if ($es_hoy) {
+    $main_keyword = "Pico y Placa $nombre_ciudad Hoy";
+    $titulo_h1_largo = "$main_keyword $dia_nombre $fecha_seo_corta ($nombre_tipo)";
+    $page_title = "$titulo_h1_largo";
+    $meta_description = "$main_keyword $dia_nombre $fecha_seo_corta. Revisa al instante las placas restringidas para $nombre_tipo y evita multas hoy en $nombre_ciudad.";
+    if ($nombre_festivo) {
+        $search_description_text = "Hoy despues de mucho nos llega un Festivo, ve y lavas tu carrito, se lo merece, anda tranquilo que es <strong>$dia_nombre</strong> Festivo y se celebra <strong>$nombre_festivo</strong> NO HAY PICO Y PLACA.";
+    } elseif (!$resultados['hay_pico'] && ($dt->format('N') == 6 || $dt->format('N') == 7)) {
+        $search_description_text = "Hoy es <strong>$dia_nombre</strong>... todo en paz y armonia, hasta los policias duermen 😴, sal, vuela pajarito, hoy no tienes pico y placa por que es <strong>$dia_nombre</strong>.";
+    } elseif ($resultados['hay_pico']) {
+        $placas_malas = implode(', ', $resultados['restricciones']);
+        $placas_buenas = implode(', ', $resultados['permitidas']);
+        $search_description_text = "Hoy sufren el pico y placa los vehículos de placa <strong>$placas_malas</strong> y no tienen pico y placa los afortunados de las placas <strong>$placas_buenas</strong> Felicidades por ustedes.";
+    } else {
+        $search_description_text = "Hoy $dia_nombre NO APLICA la medida para $nombre_tipo 🎉. Puedes circular libremente sin riesgo de multa 🚗💨.";
+    }
+} elseif ($es_manana) {
+    $main_keyword = "Pico y Placa $nombre_ciudad Mañana";
+    $titulo_h1_largo = "$main_keyword $dia_nombre $fecha_seo_corta ($nombre_tipo)";
+    $page_title = "$titulo_h1_largo";
+    $meta_description = "$main_keyword $dia_nombre $fecha_seo_corta. Evita multas y consulta las placas restringidas de $nombre_tipo para mañana en $nombre_ciudad.";
+    if ($resultados['hay_pico']) {
+        $search_description_text = "$main_keyword $dia_nombre aplica desde <strong>$hora_ini_txt</strong> hasta las <strong>$hora_fin_txt</strong> para $nombre_tipo. Evita los comparendos 💸 que te pueden dañar el día 😫.";
+    } else {
+        $search_description_text = "Mañana $dia_nombre NO APLICA la medida para $nombre_tipo 🎉. Puedes circular libremente sin riesgo de multa 🚗💨.";
+    }
+} else {
+    $titulo_h1_largo = "$main_keyword: $dia_num de $mes_nombre_min de $anio";
+    $page_title = "$titulo_h1_largo | $SITIO_NOMBRE";
+    $meta_description = "$main_keyword el $dia_nombre $fecha_seo_corta para $nombre_tipo. Consulta placas restringidas, horarios y multas.";
+    if ($resultados['hay_pico']) {
+        $search_description_text = "El <strong>$main_keyword</strong> para $nombre_tipo el $dia_nombre $fecha_seo_corta aplica en horario de <strong>$hora_ini_txt</strong> a <strong>$hora_fin_txt</strong>.";
+    } else {
+        $search_description_text = "Para el $dia_nombre $fecha_seo_corta no hay medida de Pico y Placa para $nombre_tipo en $nombre_ciudad.";
+    }
+}
+
+// --- RELOJ ---
+if ($resultados['hay_pico']) {
+    $now_ts = time(); 
+    $rangos = $ciudades[$ciudad_busqueda]['tipos'][$tipo_busqueda]['rangos_horarios_php'] ?? [];
+    foreach ($rangos as $r) {
+        $inicio_ts = strtotime("$fecha_busqueda " . $r['inicio']);
+        $fin_ts = strtotime("$fecha_busqueda " . $r['fin']);
+        if ($fin_ts < $inicio_ts) $fin_ts += 86400;
+        if ($now_ts < $inicio_ts) {
+            $search_target_ts = $inicio_ts * 1000;
+            $reloj_label_dinamico = "INICIA EN:";
+            break; 
+        } elseif ($now_ts >= $inicio_ts && $now_ts < $fin_ts) {
+            $search_target_ts = $fin_ts * 1000;
+            $reloj_label_dinamico = "TERMINA EN:";
+            break; 
+        }
+    }
+}
+
+$keywords_list = ["$main_keyword", "pico y placa $nombre_ciudad hoy $nombre_tipo", "$main_keyword $fecha_seo_corta", "placas $nombre_ciudad"];
 $meta_keywords = implode(", ", $keywords_list);
 
-// Títulos SEO
-if ($special_slug === 'hoy') {
-    $titulo_h1_largo = "Pico y Placa $nombre_ciudad HOY $anio";
-    $page_title = "Pico y Placa $nombre_ciudad HOY ($fecha_seo_corta $anio)";
-    $meta_description = "Consulta el Pico y Placa en $nombre_ciudad para HOY $fecha_texto. Placas restringidas: " . implode('-', $resultados['restricciones']) . ".";
-} elseif ($special_slug === 'manana') {
-    $titulo_h1_largo = "Pico y Placa Mañana $fecha_seo_corta $anio";
-    $page_title = "Pico y Placa Mañana $nombre_ciudad ($fecha_seo_corta $anio)";
-    $meta_description = "Prepárate para mañana: Pico y Placa en $nombre_ciudad el $fecha_texto. Placas con restricción: " . implode('-', $resultados['restricciones']) . ".";
-} else {
-    $titulo_h1_largo = "Pico y Placa $nombre_ciudad: $fecha_seo_corta $anio";
-    $page_title = "Pico y Placa $nombre_ciudad $fecha_seo_corta $anio | $nombre_tipo";
-    $meta_description = "Información oficial Pico y Placa $nombre_ciudad para el $fecha_texto. Placas: " . implode('-', $resultados['restricciones']) . ".";
+$next_event_ts = 0; $reloj_titulo = "FALTA:";
+if ($fecha_busqueda === $HOY && $search_target_ts > 0) {
+    $next_event_ts = $search_target_ts;
+    $reloj_titulo = $reloj_label_dinamico;
 }
 
-// --- GENERACIÓN DEL MENSAJE HUMANO Y CERCANO ---
-// Definimos el tiempo verbal y referencia
-$referencia_tiempo = "Hoy";
-$verbo_poder = "puedes";
-$verbo_ser = "es";
-
-if ($special_slug === 'manana') {
-    $referencia_tiempo = "Mañana";
-    $verbo_poder = "podrás";
-    $verbo_ser = "será";
-} elseif ($fecha_busqueda !== $HOY) {
-    $referencia_tiempo = "Este día";
-    $verbo_poder = "podrás";
-    $verbo_ser = "será";
-}
-
-if ($nombre_festivo) {
-    // CASO 1: FESTIVO
-    $mensaje_humano = "¡Qué maravilla! $referencia_tiempo <strong>$dia_nombre</strong> $verbo_ser Festivo 🎉. Desempolva tu carrito o ve a lavarlo 🧼 y anda tranquilo(a) porque no hay Pico y Placa para <strong style='color:#fff; text-decoration:underline;'>$nombre_tipo</strong> en <strong>$nombre_ciudad</strong>.";
-} elseif (!$resultados['hay_pico']) {
-    // CASO 2: NO APLICA (Fin de semana o exención)
-    $mensaje_humano = "$referencia_tiempo $verbo_poder circular relajado(a) 🥱, los polis duermen 👮‍♂️, porque es <strong>$dia_nombre</strong> y no aplica Pico y Placa para <strong style='color:#fff; text-decoration:underline;'>$nombre_tipo</strong> en <strong>$nombre_ciudad</strong>.";
-} else {
-    // CASO 3: RESTRICCIÓN (Mensaje útil)
-    $mensaje_humano = "¡Que no te lo partan... el día! El Pico y Placa de <strong style='color:#fff; text-decoration:underline;'>$nombre_tipo</strong> va desde las <strong>$hora_ini</strong> hasta las <strong>$hora_fin</strong> en <strong>$nombre_ciudad</strong>. Infórmate siempre con $SITIO_NOMBRE.";
-}
-
-$body_class_mode = ($es_busqueda) ? 'search-mode' : 'home-mode';
-
-// Lógica de Estado y Reloj
-$es_restriccion_activa = false; 
-$ya_paso_restriccion_hoy = false; 
-
-if ($resultados['hay_pico']) {
-    if ($fecha_busqueda === $HOY) {
-        $now_ts = time();
-        $rangos_check = $ciudades[$ciudad_busqueda]['tipos'][$tipo_busqueda]['rangos_horarios_php'] ?? [];
-        foreach ($rangos_check as $r) {
-            $i_ts = strtotime("$HOY " . $r['inicio']);
-            $f_ts = strtotime("$HOY " . $r['fin']);
-            if ($f_ts < $i_ts) $f_ts += 86400; 
-            if ($now_ts >= $i_ts && $now_ts < $f_ts) { $es_restriccion_activa = true; break; }
-        }
-        if (!$es_restriccion_activa) {
-            $ultimo_fin = 0;
-            foreach ($rangos_check as $r) {
-                $f_ts = strtotime("$HOY " . $r['fin']);
-                if ($f_ts > $ultimo_fin) $ultimo_fin = $f_ts;
-            }
-            if ($now_ts > $ultimo_fin && $ultimo_fin > 0) $ya_paso_restriccion_hoy = true;
-        }
-    } else { 
-        $es_restriccion_activa = true; 
-    }
-}
-
-$reloj_titulo = "FALTA PARA INICIAR:";
-$next_event_ts = 0; 
-if ($fecha_busqueda === $HOY) {
-    $now_ts = time(); 
-    $rangos_hoy = $ciudades[$ciudad_busqueda]['tipos'][$tipo_busqueda]['rangos_horarios_php'] ?? [];
-    if ($resultados['hay_pico'] && !empty($rangos_hoy)) {
-        foreach ($rangos_hoy as $r) {
-            $inicio_ts = strtotime("$HOY " . $r['inicio']);
-            $fin_ts = strtotime("$HOY " . $r['fin']);
-            if ($fin_ts < $inicio_ts) $fin_ts += 86400; 
-            if ($now_ts >= $inicio_ts && $now_ts < $fin_ts) {
-                $next_event_ts = $fin_ts * 1000;
-                $reloj_titulo = "TERMINA EN:"; break;
-            } elseif ($now_ts < $inicio_ts) {
-                $next_event_ts = $inicio_ts * 1000;
-                $reloj_titulo = "INICIA EN:"; break;
-            }
-        }
-    }
-    if ($next_event_ts == 0) {
-        for ($i = 1; $i <= 15; $i++) { 
-            $nd = date('Y-m-d', strtotime("$HOY +$i days"));
-            $nr = $picoYPlaca->obtenerRestriccion($ciudad_busqueda, $nd, $tipo_busqueda);
-            if ($nr['hay_pico']) {
-                $rangos_next = $ciudades[$ciudad_busqueda]['tipos'][$tipo_busqueda]['rangos_horarios_php'] ?? [];
-                if (!empty($rangos_next)) {
-                    $inicio_ts = strtotime("$nd " . $rangos_next[0]['inicio']);
-                    $next_event_ts = $inicio_ts * 1000;
-                    $ndt = new DateTime($nd);
-                    $d_nombre = $DIAS_SEMANA[$ndt->format('N')];
-                    $d_num = $ndt->format('d');
-                    $placas_prox = implode('-', $nr['restricciones']);
-                    $reloj_titulo = "PRÓXIMA: " . mb_strtoupper("$d_nombre $d_num") . " ($placas_prox)";
-                }
-                break; 
-            }
-        }
-    }
-}
-
+// Proyección
 $calendario_personalizado = [];
 $placa_proyeccion = $_POST['placa_proyeccion'] ?? null; 
 $ciudad_proyeccion = $_POST['ciudad_proyeccion'] ?? $ciudad_busqueda;
 $tipo_proyeccion = $_POST['tipo_proyeccion'] ?? $tipo_busqueda;
 $mostrar_proyeccion = false;
-
 if ($placa_proyeccion !== null && is_numeric($placa_proyeccion)) {
     $mostrar_proyeccion = true;
     $fecha_p = new DateTime($HOY);
@@ -274,15 +245,16 @@ if ($placa_proyeccion !== null && is_numeric($placa_proyeccion)) {
     }
 }
 
+// Calendario
 $calendario = [];
 $fecha_iter = new DateTime($HOY);
 for ($i = 0; $i < 30; $i++) {
     $f_str = $fecha_iter->format('Y-m-d');
     $res = $picoYPlaca->obtenerRestriccion($ciudad_busqueda, $f_str, $tipo_busqueda);
     $estado_dia = $res['hay_pico'] ? 'restriccion_general' : 'libre';
-    $mensaje_dia = $res['hay_pico'] ? 'Restringe: ' . implode('-', $res['restricciones']) : 'Sin restricción';
+    $mensaje_dia = $res['hay_pico'] ? implode('-', $res['restricciones']) : 'Libre';
     if ($res['festivo']) {
-        $mensaje_dia .= "<br><span class='festivo-mini'>🎉 {$res['festivo']}</span>";
+        $mensaje_dia = "<span class='festivo-label'>🎉 {$res['festivo']}</span>";
         if (!$res['hay_pico']) $estado_dia = 'libre';
     }
     $calendario[] = [
@@ -294,6 +266,8 @@ for ($i = 0; $i < 30; $i++) {
     ];
     $fecha_iter->modify('+1 day');
 }
+
+$bg_search_color = $resultados['hay_pico'] ? '#fff5f5' : '#f0fff4';
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -305,13 +279,18 @@ for ($i = 0; $i < 30; $i++) {
     <meta name="keywords" content="<?= htmlspecialchars($meta_keywords) ?>">
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="<?= htmlspecialchars($canonical_url) ?>">
-    <meta name="theme-color" content="#84fab0">
-    <meta name="mobile-web-app-capable" content="yes">
-    <link rel="apple-touch-icon" sizes="57x57" href="/favicons/apple-icon-57x57.png">
-    <link rel="icon" type="image/png" sizes="192x192"  href="/favicons/android-icon-192x192.png">
+    <meta name="theme-color" content="<?= $es_busqueda ? $bg_search_color : ($resultados['hay_pico'] ? '#e74c3c' : '#84fab0') ?>">
     <link rel="icon" type="image/png" sizes="32x32" href="/favicons/favicon-32x32.png">
-    <link rel="manifest" href="/manifest.json">
-    <link rel="stylesheet" href="/styles.css?v=19.0">
+    
+    <link rel="stylesheet" href="/styles.css?v=33.0">
+    
+    <?php if($es_busqueda): ?>
+    <style>
+        body { background-color: <?= $bg_search_color ?>; }
+        .search-description { border-left: 6px solid <?= $resultados['hay_pico'] ? '#e74c3c' : '#27ae60' ?>; }
+    </style>
+    <?php endif; ?>
+    
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-2L2EV10ZWW"></script>
     <script>
       window.dataLayer = window.dataLayer || [];
@@ -319,31 +298,116 @@ for ($i = 0; $i < 30; $i++) {
       gtag('js', new Date());
       gtag('config', 'G-2L2EV10ZWW');
     </script>
-    <script type="application/ld+json">
-    {
-      "@context": "https://schema.org",
-      "@type": "GovernmentService",
-      "name": "Pico y Placa <?= $nombre_ciudad ?>",
-      "areaServed": { "@type": "City", "name": "<?= $nombre_ciudad ?>" },
-      "datePublished": "<?= $fecha_busqueda ?>",
-      "description": "Restricción para placas terminadas en <?= implode(', ', $resultados['restricciones']) ?>."
-    }
-    </script>
 </head>
-<body class="<?= $body_class_mode ?>" data-city-slug="<?= $ciudad_busqueda ?>">
+<body class="<?= $es_busqueda ? 'search-result-mode' : ($body_class_mode ?? 'home-mode') ?>" data-city-slug="<?= $ciudad_busqueda ?>">
+    
     <script src="/ads/ads.js?v=3.0"></script>
+    
+<?php if ($es_busqueda): ?>
+
+    <main class="search-result-container">
+        <h1 class="search-title-h1"><?= $titulo_h1_largo ?></h1>
+
+        <div class="search-description">
+            <p><?= $search_description_text ?></p>
+            <?php if($search_target_ts > 0): ?>
+                <div class="countdown-badge">⏳ <?= $reloj_label_dinamico ?> <span id="search-timer">calculando...</span></div>
+            <?php elseif($resultados['hay_pico']): ?>
+                 <div class="countdown-badge" style="background:#27ae60;">✅ Medida finalizada por hoy</div>
+            <?php endif; ?>
+        </div>
+        
+        <div class="vehicle-selector-container">
+            <span class="selector-label">👇 Cambiar tipo de vehículo:</span>
+            <div class="vehicle-options">
+                <?php foreach($ciudades[$ciudad_busqueda]['tipos'] as $keyTipo => $dataTipo): 
+                    $linkTipo = "?";
+                    if ($es_hoy && $ciudad_busqueda === 'bogota') {
+                        $linkTipo = "/pico-y-placa-bogota-hoy?ciudad_slug={$ciudad_busqueda}&tipo={$keyTipo}&special_slug=hoy";
+                    } elseif ($es_manana && $ciudad_busqueda === 'bogota') {
+                        $linkTipo = "/pico-y-placa-bogota-mañana?ciudad_slug={$ciudad_busqueda}&tipo={$keyTipo}&special_slug=manana";
+                    } else {
+                        $mes_url = strtolower($mes_nombre_min); 
+                        $linkTipo = "/pico-y-placa/{$ciudad_busqueda}-{$dia_num}-de-{$mes_url}-de-{$anio}?tipo={$keyTipo}";
+                    }
+                    $isActive = ($keyTipo === $tipo_busqueda) ? 'active' : '';
+                ?>
+                    <a href="<?= $linkTipo ?>" class="btn-vehicle-type <?= $isActive ?>"><?= $dataTipo['nombre_display'] ?></a>
+                <?php endforeach; ?>
+            </div>
+        </div>
+
+        <?php if ($resultados['hay_pico']): ?>
+            <section class="plates-section">
+                <div class="plates-card restricted">
+                    <h2 class="plates-header-h2">🚫 Restricción de movilidad para las placas:</h2>
+                    <div class="plate-number-big"><?= implode(' - ', $resultados['restricciones']) ?></div>
+                    <h3 class="info-detail-h3">Horario: <?= $resultados['horario'] ?></h3>
+                </div>
+                <div class="plates-card allowed">
+                    <h2 class="plates-header-h2">✅ Placas sin pico y placa el <?= $dia_nombre ?>:</h2>
+                    <div class="plate-number-big"><?= implode(' - ', $resultados['permitidas']) ?></div>
+                    <h3 class="info-detail-h3">Pueden circular libremente</h3>
+                </div>
+            </section>
+        <?php else: ?>
+            <section class="plates-section">
+                <div class="plates-card allowed">
+                    <h2 class="plates-header-h2">🎉 ¡No hay restricción!</h2>
+                    <div class="free-day-text"><?= $nombre_festivo ? "¡Es Festivo: $nombre_festivo!" : "Día Libre de Medida" ?></div>
+                    <p style="margin-top:15px; font-size:1.1em;">Todos los vehículos de tipo <strong><?= $nombre_tipo ?></strong> pueden circular sin riesgo de multa.</p>
+                </div>
+             </section>
+        <?php endif; ?>
+
+        <div class="action-buttons">
+            <?php if(!$es_hoy): ?>
+                <a href="<?= $url_hoy_dinamica ?>" class="btn-new-action btn-primary-search" style="background: #2ecc71; border-color: #2ecc71;">📍 Ver Pico y Placa HOY en <?= $nombre_ciudad ?></a>
+            <?php endif; ?>
+            <a href="/?ciudad_slug=<?= $ciudad_busqueda ?>" class="btn-new-action btn-primary-search">📅 Consultar otra fecha</a>
+            <a href="/" class="btn-new-action btn-secondary-search">🏚️ Inicio</a>
+        </div>
+
+        <footer class="footer-simple">
+            &copy; <?= date('Y') ?> PicoYPlacaBogota.com.co - Información Informativa. <br>
+            <a href="/contacto.php" style="color:#7f8c8d;">Contacto</a> | <a href="/" style="color:#7f8c8d;">Inicio</a>
+        </footer>
+    </main>
+
+    <script>
+        const TARGET_TS = <?= $search_target_ts ?>;
+        const SERVER_NOW = <?= time() * 1000 ?>;
+        const OFFSET = new Date().getTime() - SERVER_NOW;
+        function updateSearchTimer() {
+            if(TARGET_TS === 0) return;
+            const now = new Date().getTime() - OFFSET;
+            const diff = TARGET_TS - now;
+            const el = document.getElementById('search-timer');
+            if(!el) return;
+            if (diff <= 0) {
+                el.innerText = "00h 00m 00s"; setTimeout(() => location.reload(), 2000); return;
+            }
+            let days = Math.floor(diff / (1000 * 60 * 60 * 24));
+            let h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+            let m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            let s = Math.floor((diff % (1000 * 60)) / 1000);
+            let txt = (days > 0 ? days + "d " : "") + (h<10?'0':'') + h + "h " + (m<10?'0':'') + m + "m " + (s<10?'0':'') + s + "s";
+            el.innerText = txt;
+        }
+        setInterval(updateSearchTimer, 1000);
+        updateSearchTimer();
+    </script>
+
+<?php else: ?>
+
     <div id="install-wrapper">
         <div id="android-prompt" class="install-toast" style="display:none">
             <div style="display:flex; align-items:center;">
                 <span style="font-size:1.5em; margin-right:10px;">📲</span>
-                <div>
-                    <div style="font-weight:bold; font-size:0.9em;">Instalar App</div>
-                    <div style="font-size:0.75em; opacity:0.8;">Acceso rápido</div>
-                </div>
+                <div><div style="font-weight:bold; font-size:0.9em;">Instalar App</div><div style="font-size:0.75em; opacity:0.8;">Acceso rápido</div></div>
             </div>
             <div style="display:flex; align-items:center;">
-                <button id="btn-install-action" class="btn-install-action">INSTALAR</button>
-                <button id="btn-close-install" class="btn-close-install">✕</button>
+                <button id="btn-install-action" class="btn-install-action">INSTALAR</button> <button id="btn-close-install" class="btn-close-install">✕</button>
             </div>
         </div>
         <div id="ios-prompt" class="install-toast" style="display:none; flex-direction:column; text-align:center;">
@@ -357,23 +421,16 @@ for ($i = 0; $i < 30; $i++) {
         <div class="header-content">
             <span class="car-icon">🚗</span>
             <h1 class="app-title"><?= $titulo_h1_largo ?></h1>
-            <p class="app-subtitle" style="line-height:1.5; font-size:0.95rem; margin-top:10px; max-width:600px; margin-left:auto; margin-right:auto;">
-                <?= $mensaje_humano ?>
-            </p>
+            <p class="app-subtitle" style="line-height:1.5; font-size:0.95rem; margin-top:10px; max-width:600px; margin-left:auto; margin-right:auto;"><?= $search_description_text ?></p>
         </div>
     </header>
 
     <div class="nav-tomorrow-wrapper" style="text-align:center; margin-bottom:15px; display:flex; justify-content:center; gap:10px;">
-        <?php if($special_slug !== 'manana'): ?>
-        <a href="/pico-y-placa-bogota-mañana" class="btn-tomorrow-float">🚀 Ver <strong>MAÑANA</strong></a>
-        <?php endif; ?>
-        <?php if($special_slug !== 'hoy'): ?>
-        <a href="/pico-y-placa-bogota-hoy" class="btn-tomorrow-float" style="background: #2ecc71;">📅 Ver <strong>HOY</strong></a>
-        <?php endif; ?>
+        <?php if($special_slug !== 'manana'): ?> <a href="/pico-y-placa-bogota-mañana" class="btn-tomorrow-float">🚀 Ver <strong>MAÑANA</strong></a> <?php endif; ?>
+        <?php if(!$es_hoy): ?> <a href="<?= $url_hoy_dinamica ?>" class="btn-tomorrow-float" style="background: #2ecc71;">📅 Ver <strong>HOY</strong></a> <?php endif; ?>
     </div>
 
     <main class="app-container">
-        
         <section class="card-dashboard search-card area-search">
             <h2 class="card-header-icon">📅 Buscar otra fecha</h2>
             <form action="/buscar.php" method="POST" class="search-form-grid">
@@ -392,7 +449,6 @@ for ($i = 0; $i < 30; $i++) {
                 </div>
                 <div class="actions-wrapper full-width" style="display: flex; gap: 10px;">
                     <button type="submit" class="btn-app-primary" style="flex: 2;">Buscar</button>
-                    <a href="/" class="btn-app-secondary" style="flex: 1; text-align:center; text-decoration:none; display:flex; align-items:center; justify-content:center;">🏠 Inicio</a>
                 </div>
             </form>
         </section>
@@ -404,41 +460,40 @@ for ($i = 0; $i < 30; $i++) {
                     <h2 style="display:inline; font-size:inherit; margin:0; font-weight:600;">ℹ️ Normativa en <?= $nombre_ciudad ?></h2>
                     <span class="icon-toggle">▼</span>
                 </summary>
-                <div class="seo-content">
-                    <?= $ciudades[$ciudad_busqueda]['contenido_seo'] ?>
-                </div>
+                <div class="seo-content"><?= $ciudades[$ciudad_busqueda]['contenido_seo'] ?></div>
             </details>
         </section>
-        <?php endif; ?>
-
-        <?php if($nombre_festivo): ?>
-            <section class="festivo-alert-card area-festivo">
-                <h2 style="margin:0; font-size:1.1em; color:inherit;">🎉 ¡ES FESTIVO!</h2>
-                <p style="margin:5px 0 0;">Celebramos: <em><?= $nombre_festivo ?></em>. <?= !$resultados['hay_pico'] ? "✅ ¡Disfruta! No hay Pico y Placa." : "⚠️ Atención a restricciones." ?></p>
-            </section>
         <?php endif; ?>
 
         <section class="quick-stats-grid area-stats">
             <div class="stat-card purple-gradient">
                 <div class="stat-icon">📅 FECHA</div>
-                <div class="stat-value small-text">
-                    <?= ucfirst($DIAS_SEMANA[$dt->format('N')]) ?><br>
-                    <?= $dt->format('j') ?> de <?= ucfirst($MESES[$dt->format('m')]) ?>
-                </div>
+                <div class="stat-value small-text"><?= ucfirst($DIAS_SEMANA[$dt->format('N')]) ?><br><?= $dt->format('j') ?> de <?= ucfirst($MESES[$dt->format('m')]) ?></div>
             </div>
             <div class="stat-card purple-gradient">
                 <div class="stat-icon">🚫 RESTRICCIÓN</div>
-                <div class="stat-value big-text">
-                    <?= $resultados['hay_pico'] ? implode(', ', $resultados['restricciones']) : "NO" ?>
-                </div>
+                <div class="stat-value big-text"><?= $resultados['hay_pico'] ? implode(', ', $resultados['restricciones']) : "NO" ?></div>
             </div>
             <div class="stat-card purple-gradient">
                 <div class="stat-icon">🕒 HORARIO</div>
-                <div class="stat-value small-text">
-                    <?= $resultados['hay_pico'] ? $resultados['horario'] : 'Libre' ?>
-                </div>
+                <div class="stat-value small-text"><?= $resultados['hay_pico'] ? $resultados['horario'] : 'Libre' ?></div>
             </div>
         </section>
+
+        <?php
+        $es_restriccion_activa = false;
+        $ya_paso_restriccion_hoy = false;
+        if ($resultados['hay_pico'] && $fecha_busqueda === $HOY) {
+            $now_ts = time();
+            $rangos_check = $ciudades[$ciudad_busqueda]['tipos'][$tipo_busqueda]['rangos_horarios_php'] ?? [];
+            foreach ($rangos_check as $r) {
+                $i_ts = strtotime("$HOY " . $r['inicio']);
+                $f_ts = strtotime("$HOY " . $r['fin']);
+                if ($f_ts < $i_ts) $f_ts += 86400; 
+                if ($now_ts >= $i_ts && $now_ts < $f_ts) { $es_restriccion_activa = true; break; }
+            }
+        }
+        ?>
 
         <section class="card-dashboard status-card area-status" style="background-color: <?= $es_restriccion_activa ? '#fff5f5' : '#f0fff4' ?>; border-left: 5px solid <?= $es_restriccion_activa ? '#d63031' : '#00b894' ?>;">
             <h2 class="status-header" style="margin-bottom:10px;">
@@ -448,10 +503,8 @@ for ($i = 0; $i < 30; $i++) {
             <div id="countdown-section">
                 <div class="timer-label">⏳ <?= $reloj_titulo ?></div>
                 <div class="timer-container">
-                    <div class="time-box"><span id="cd-h">00</span><small>Hs</small></div>
-                    <div class="time-sep">:</div>
-                    <div class="time-box"><span id="cd-m">00</span><small>Min</small></div>
-                    <div class="time-sep">:</div>
+                    <div class="time-box"><span id="cd-h">00</span><small>Hs</small></div> <div class="time-sep">:</div>
+                    <div class="time-box"><span id="cd-m">00</span><small>Min</small></div> <div class="time-sep">:</div>
                     <div class="time-box"><span id="cd-s">00</span><small>Seg</small></div>
                 </div>
             </div>
@@ -461,25 +514,17 @@ for ($i = 0; $i < 30; $i++) {
         <section class="city-tags-section area-cities">
             <h2>Pico y Placa próximos días</h2>
             <div class="city-tags-grid">
-                <?php 
-                for($i=1; $i<=6; $i++):
-                    $f_futura = new DateTime($fecha_busqueda);
-                    $f_futura->modify("+$i day");
-                    $d_f = $f_futura->format('j');
-                    $m_f = $MESES[$f_futura->format('m')];
-                    $a_f = $f_futura->format('Y');
+                <?php for($i=1; $i<=6; $i++):
+                    $f_futura = new DateTime($fecha_busqueda); $f_futura->modify("+$i day");
+                    $d_f = $f_futura->format('j'); $m_f = $MESES[$f_futura->format('m')]; $a_f = $f_futura->format('Y');
                     $url_futura = "/pico-y-placa/$ciudad_busqueda-$d_f-de-$m_f-de-$a_f";
                 ?>
-                    <a href="<?= $url_futura ?>" class="city-tag">
-                        <?= ucfirst($DIAS_SEMANA[$f_futura->format('N')]) ?> <?= $d_f ?>
-                    </a>
+                    <a href="<?= $url_futura ?>" class="city-tag"><?= ucfirst($DIAS_SEMANA[$f_futura->format('N')]) ?> <?= $d_f ?></a>
                 <?php endfor; ?>
-                
                 <h2 style="width:100%; margin-top:20px; font-size:1.3em;">Otras Ciudades</h2>
-                 <?php foreach($ciudades as $k => $v): 
-                    if($k === $ciudad_busqueda) continue;
-                    $d_hoy = date('j'); $m_hoy = $MESES[date('m')]; $a_hoy = date('Y');
-                    $url = "/pico-y-placa/$k-$d_hoy-de-$m_hoy-de-$a_hoy";
+                 <?php foreach($ciudades as $k => $v): if($k === $ciudad_busqueda) continue;
+                    $d_hoy_loop = date('j'); $m_hoy_loop = $MESES[date('m')]; $a_hoy_loop = date('Y');
+                    $url = "/pico-y-placa/$k-$d_hoy_loop-de-$m_hoy_loop-de-$a_hoy_loop";
                 ?>
                     <a href="<?= $url ?>" class="city-tag"><?= $v['nombre'] ?></a>
                 <?php endforeach; ?>
@@ -540,18 +585,10 @@ for ($i = 0; $i < 30; $i++) {
                 <button id="btn-toggle-cal" class="btn-app-flashy" onclick="toggleCalendario()">Ver Calendario Completo</button>
             </div>
             <div id="calendario-grid" class="calendario-grid" style="display:none;">
-                <?php foreach($calendario as $dia): 
-                    $clase_dia = ($dia['estado'] == 'libre') ? 'dia-libre' : 'dia-restriccion';
-                ?>
+                <?php foreach($calendario as $dia): $clase_dia = ($dia['estado'] == 'libre') ? 'dia-libre' : 'dia-restriccion'; ?>
                     <div class="calendario-item <?= $clase_dia ?>">
-                        <div class="cal-fecha">
-                            <span class="cal-dia-num"><?= $dia['d'] ?></span>
-                            <span class="cal-mes"><?= $dia['m'] ?></span>
-                        </div>
-                        <div class="cal-info">
-                            <div class="cal-dia-semana"><?= $dia['dia'] ?></div>
-                            <div class="cal-mensaje"><?= $dia['mensaje'] ?></div>
-                        </div>
+                        <div class="cal-fecha"><span class="cal-dia-num"><?= $dia['d'] ?></span><span class="cal-mes"><?= $dia['m'] ?></span></div>
+                        <div class="cal-info"><div class="cal-dia-semana"><?= $dia['dia'] ?></div><div class="cal-mensaje"><?= $dia['mensaje'] ?></div></div>
                     </div>
                 <?php endforeach; ?>
             </div>
@@ -568,27 +605,9 @@ for ($i = 0; $i < 30; $i++) {
         </section>
     </main>
 
-    <?php
-        $placas_texto = $resultados['hay_pico'] ? implode('-', $resultados['restricciones']) : "NO TIENE";
-        $msj_base = "⚠️ Pico y Placa $nombre_ciudad ($fecha_seo_corta): $placas_texto. Info: $canonical_url";
-        $link_wa = "https://api.whatsapp.com/send?text=" . urlencode($msj_base);
-        $link_fb = "https://www.facebook.com/sharer/sharer.php?u=" . urlencode($canonical_url);
-        $link_x  = "https://twitter.com/intent/tweet?text=" . urlencode($msj_base);
-    ?>
-    <div class="share-floating-bar">
-        <span class="share-label">Compartir</span>
-        <a href="<?= $link_wa ?>" target="_blank" class="btn-icon-share bg-whatsapp"><svg viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.008-.57-.008-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z"/></svg></a>
-        <a href="<?= $link_fb ?>" target="_blank" class="btn-icon-share bg-facebook" title="Facebook"><svg viewBox="0 0 24 24"><path d="M9.101 23.691v-7.98H6.627v-3.667h2.474v-1.58c0-4.085 1.848-5.978 5.858-5.978.401 0 .955.042 1.468.103a8.68 8.68 0 0 1 1.141.195v3.325a8.623 8.623 0 0 0-.653-.036c-2.148 0-2.971.956-2.971 3.594v.376h3.428l-.581 3.667h-2.847v7.98c3.072-.53 5.622-2.567 6.853-5.415 1.23-2.848 1.002-6.093-.613-8.723a9.825 9.825 0 0 0-5.074-4.497c-2.992-.882-6.223-.258-8.64 1.67-2.417 1.928-3.696 4.927-3.42 8.022.276 3.095 2.08 5.84 4.823 7.341 1.362.745 2.87 1.119 4.377 1.097-.444.044-.891.077-1.344.077Z"/></svg></a>
-        <a href="<?= $link_x ?>" target="_blank" class="btn-icon-share bg-x" title="X"><svg viewBox="0 0 24 24"><path d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932ZM17.61 20.644h2.039L6.486 3.24H4.298Z"/></svg></a>
-    </div>
-
     <footer class="main-footer">
         <div class="footer-content">
-            <span>&copy; <?= date('Y') ?> PicoYPlaca Bogotá</span>
-            <span>|</span>
-            <a href="https://picoyplacabogota.com.co/user/login.php">📢 Anuncie Aquí</a>
-            <span>|</span>
-            <a href="/contacto.php">Contacto</a>
+            <span>&copy; <?= date('Y') ?> PicoYPlaca Bogotá</span> | <a href="https://picoyplacabogota.com.co/user/login.php">📢 Anuncie Aquí</a> | <a href="/contacto.php">Contacto</a>
         </div>
     </footer>
 
@@ -621,6 +640,7 @@ for ($i = 0; $i < 30; $i++) {
         function initFormulario() {
             const selC = document.getElementById('sel-ciudad');
             const selT = document.getElementById('sel-tipo');
+            if(!selC || !selT) return;
             const upd = () => {
                 const c = selC.value;
                 const t = DATA_CIUDADES[c]?.tipos || {};
@@ -645,7 +665,7 @@ for ($i = 0; $i < 30; $i++) {
             const ci = document.getElementById('btn-close-ios');
             const isIos = /iphone|ipad|ipod/.test(window.navigator.userAgent.toLowerCase());
             const isInStandaloneMode = ('standalone' in window.navigator) && (window.navigator.standalone);
-
+            if(!w) return;
             window.addEventListener('beforeinstallprompt', (e) => {
                 e.preventDefault(); deferredPrompt = e; w.style.display = 'flex'; ap.style.display = 'flex';
                 btn.addEventListener('click', () => { ap.style.display = 'none'; deferredPrompt.prompt(); });
@@ -661,5 +681,6 @@ for ($i = 0; $i < 30; $i++) {
             g.style.display = (g.style.display==='none') ? 'grid' : 'none';
         }
     </script>
+<?php endif; ?>
 </body>
 </html>

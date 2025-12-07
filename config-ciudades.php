@@ -152,9 +152,9 @@ $ciudades = [
             ],
             'motos' => [
                 'nombre_display' => 'Motos',
-                'horario' => '9:00 AM - 1:00 PM',
+                'horario' => '6:00 AM - 8:00 PM',
                 'regla' => 'bucaramanga_motos',
-                'rangos_horarios_php' => [['inicio' => '9:00 AM', 'fin' => '1:00 PM']]
+                'rangos_horarios_php' => [['inicio' => '6:00 AM', 'fin' => '8:00 PM']]
             ],
             'transporte-colectivo' => [
                 'nombre_display' => 'Transporte Público',
