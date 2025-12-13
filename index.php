@@ -1,7 +1,7 @@
 <?php
 /**
  * index.php
- * Versión 34.0 - Fix Critical Ads (Restored data-city-slug)
+ * Versión 37.0 - Tracking de Instalaciones (GA4)
  */
 
 // 1. Configuración inicial
@@ -159,23 +159,23 @@ $reloj_label_dinamico = "FALTA:";
 
 if ($es_hoy) {
     $main_keyword = "Pico y Placa $nombre_ciudad Hoy";
-    $titulo_h1_largo = "$main_keyword $dia_nombre $fecha_seo_corta ($nombre_tipo)";
+    $titulo_h1_largo = "$main_keyword $dia_nombre $fecha_seo_corta $nombre_tipo";
     $page_title = "$titulo_h1_largo";
     $meta_description = "$main_keyword $dia_nombre $fecha_seo_corta. Revisa al instante las placas restringidas para $nombre_tipo y evita multas hoy en $nombre_ciudad.";
     if ($nombre_festivo) {
-        $search_description_text = "Hoy despues de mucho nos llega un Festivo, ve y lavas tu carrito, se lo merece, anda tranquilo que es <strong>$dia_nombre</strong> Festivo y se celebra <strong>$nombre_festivo</strong> NO HAY PICO Y PLACA.";
+        $search_description_text = "Hoy despues de mucho nos llega un Festivo, ve a lavar tu carrito, se lo merece, anda tranquilo que es <strong>$dia_nombre</strong> Festivo y se celebra <strong>$nombre_festivo</strong> NO HAY PICO Y PLACA.";
     } elseif (!$resultados['hay_pico'] && ($dt->format('N') == 6 || $dt->format('N') == 7)) {
-        $search_description_text = "Hoy es <strong>$dia_nombre</strong>... todo en paz y armonia, hasta los policias duermen 😴, sal, vuela pajarito, hoy no tienes pico y placa por que es <strong>$dia_nombre</strong>.";
+        $search_description_text = "Hoy es <strong>$dia_nombre</strong>... todo es paz y armonia, hasta los policias duermen 😴, sal, vuela pajarito, hoy no tienes pico y placa por que es <strong>$dia_nombre</strong>.";
     } elseif ($resultados['hay_pico']) {
         $placas_malas = implode(', ', $resultados['restricciones']);
         $placas_buenas = implode(', ', $resultados['permitidas']);
-        $search_description_text = "Hoy sufren el pico y placa los vehículos de placa <strong>$placas_malas</strong> y no tienen pico y placa los afortunados de las placas <strong>$placas_buenas</strong> Felicidades por ustedes.";
+        $search_description_text = "Hoy tienen el pico y placa los vehículos de placa <strong>$placas_malas</strong> y no tienen pico y placa los afortunados de las placas <strong>$placas_buenas</strong> Felicidades por ustedes.";
     } else {
         $search_description_text = "Hoy $dia_nombre NO APLICA la medida para $nombre_tipo 🎉. Puedes circular libremente sin riesgo de multa 🚗💨.";
     }
 } elseif ($es_manana) {
     $main_keyword = "Pico y Placa $nombre_ciudad Mañana";
-    $titulo_h1_largo = "$main_keyword $dia_nombre $fecha_seo_corta ($nombre_tipo)";
+    $titulo_h1_largo = "$main_keyword $dia_nombre $fecha_seo_corta $nombre_tipo";
     $page_title = "$titulo_h1_largo";
     $meta_description = "$main_keyword $dia_nombre $fecha_seo_corta. Evita multas y consulta las placas restringidas de $nombre_tipo para mañana en $nombre_ciudad.";
     if ($resultados['hay_pico']) {
@@ -279,10 +279,11 @@ $bg_search_color = $resultados['hay_pico'] ? '#fff5f5' : '#f0fff4';
     <meta name="keywords" content="<?= htmlspecialchars($meta_keywords) ?>">
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="<?= htmlspecialchars($canonical_url) ?>">
+    <link rel="manifest" href="/favicons/manifest.json">
     <meta name="theme-color" content="<?= $es_busqueda ? $bg_search_color : ($resultados['hay_pico'] ? '#e74c3c' : '#84fab0') ?>">
     <link rel="icon" type="image/png" sizes="32x32" href="/favicons/favicon-32x32.png">
     
-    <link rel="stylesheet" href="/styles.css?v=33.0">
+    <link rel="stylesheet" href="/styles.css?v=36.0">
     
     <?php if($es_busqueda): ?>
     <style>
@@ -374,7 +375,122 @@ $bg_search_color = $resultados['hay_pico'] ? '#fff5f5' : '#f0fff4';
         </footer>
     </main>
 
+    <div class="floating-share-container">
+        <div class="share-options" id="shareOptions">
+            <a href="#" class="share-btn whatsapp" id="share-wa" target="_blank" aria-label="Compartir en WhatsApp">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.976.58 2.023.972 3.152.972 3.182 0 5.768-2.586 5.769-5.766.001-3.18-2.585-5.766-5.769-5.766zm9.969 5.766c0 5.504-4.478 9.982-9.982 9.982a9.92 9.92 0 0 1-4.703-1.185l-5.316 1.396 1.42-5.176a9.92 9.92 0 0 1-1.326-4.966C2.045 6.517 6.523 2.04 12.027 2.04s9.982 4.478 9.982 9.982h-.009z"/></svg>
+            </a>
+            <a href="#" class="share-btn facebook" id="share-fb" target="_blank" aria-label="Compartir en Facebook">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24"><path d="M9.101 23.691v-7.98H6.627v-3.667h2.474v-1.58c0-4.085 1.848-5.978 5.858-5.978.401 0 .955.042 1.468.103a8.68 8.68 0 0 1 1.141.195v3.325a8.623 8.623 0 0 0-.653-.036c-2.048 0-2.732 1.35-2.732 3.075v1.272h3.662l-.615 3.667h-3.047v7.98H9.101z"/></svg>
+            </a>
+            <a href="#" class="share-btn xcom" id="share-x" target="_blank" aria-label="Compartir en X">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932ZM17.61 20.644h2.039L6.486 3.24H4.298Z"/></svg>
+            </a>
+        </div>
+        <button class="main-fab-btn" id="toggleShare" aria-label="Compartir">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="28" height="28"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+        </button>
+    </div>
+
+    <button id="btn-pwa-install" class="pwa-install-fab" style="display:none;">
+        📲 Instalar App
+        <span class="close-pwa" id="closePwaBtn">✕</span>
+    </button>
+    
+    <div id="ios-prompt" class="install-toast" style="display:none; position:fixed; bottom:20px; left:20px; right:20px; z-index:10000; flex-direction:column; text-align:center;">
+        <div style="margin-bottom:5px;">📲 <strong>Instalar en iPhone:</strong></div>
+        <div style="font-size:0.85em;">Toca <strong>Compartir</strong> y elige <strong>"Agregar a Inicio"</strong>.</div>
+        <button id="btn-close-ios" class="btn-close-install" style="margin-top:10px;">Cerrar ✕</button>
+    </div>
+
     <script>
+        // --- LOGICA DEL WIDGET COMPARTIR ---
+        const pageTitle = encodeURIComponent(document.title);
+        const pageUrl = encodeURIComponent(window.location.href);
+
+        document.getElementById('share-wa').href = `https://api.whatsapp.com/send?text=${pageTitle} ${pageUrl}`;
+        document.getElementById('share-fb').href = `https://www.facebook.com/sharer/sharer.php?u=${pageUrl}`;
+        document.getElementById('share-x').href = `https://twitter.com/intent/tweet?text=${pageTitle}&url=${pageUrl}`;
+
+        document.getElementById('toggleShare').addEventListener('click', function() {
+            document.getElementById('shareOptions').classList.toggle('active');
+            this.classList.toggle('active');
+        });
+
+        // --- LOGICA PWA ACTUALIZADA ---
+        let deferredPrompt;
+        const btnInstall = document.getElementById('btn-pwa-install');
+        const btnClosePwa = document.getElementById('closePwaBtn');
+        const iosPrompt = document.getElementById('ios-prompt');
+        const btnCloseIos = document.getElementById('btn-close-ios');
+
+        // Cerrar botón flotante
+        btnClosePwa.addEventListener('click', (e) => {
+            e.stopPropagation(); // Evitar click en el botón padre
+            btnInstall.style.display = 'none';
+        });
+
+        // Cerrar toast iOS
+        btnCloseIos.addEventListener('click', () => { iosPrompt.style.display = 'none'; });
+
+        // 1. Android / Desktop (Chrome/Edge)
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            // Mostrar botón flotante
+            btnInstall.style.display = 'flex';
+            
+            btnInstall.addEventListener('click', (ev) => {
+                // Si hizo click en la X ya se manejó arriba, si hizo click en el resto:
+                if(ev.target !== btnClosePwa) {
+                    btnInstall.style.display = 'none';
+                    deferredPrompt.prompt();
+                    deferredPrompt.userChoice.then((choiceResult) => {
+                        if (choiceResult.outcome === 'accepted') {
+                            console.log('Usuario aceptó instalar');
+                        }
+                        deferredPrompt = null;
+                    });
+                }
+            });
+        });
+
+        // 2. Detectar iOS para mostrar botón que abre instrucciones
+        const isIos = /iphone|ipad|ipod/.test(window.navigator.userAgent.toLowerCase());
+        const isInStandaloneMode = ('standalone' in window.navigator) && (window.navigator.standalone);
+
+        if (isIos && !isInStandaloneMode) {
+            // En iOS no hay "prompt" automático, pero mostramos el botón para abrir las instrucciones
+            btnInstall.style.display = 'flex';
+            btnInstall.addEventListener('click', (ev) => {
+                 if(ev.target !== btnClosePwa) {
+                     iosPrompt.style.display = 'flex'; // Mostrar instrucciones
+                 }
+            });
+        }
+
+        // --- REGISTRO DEL SERVICE WORKER ---
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', function() {
+                navigator.serviceWorker.register('/sw.js').then(function(registration) {
+                    console.log('ServiceWorker registrado con éxito: ', registration.scope);
+                }, function(err) {
+                    console.log('Fallo al registrar ServiceWorker: ', err);
+                });
+            });
+        }
+
+        // --- TRACKING DE INSTALACIÓN (NUEVO) ---
+        window.addEventListener('appinstalled', (evt) => {
+            console.log('PWA instalada correctamente');
+            // Enviamos el evento a GA4
+            gtag('event', 'pwa_install', {
+                'event_category': 'Engagement',
+                'event_label': 'Install Success'
+            });
+        });
+
+        // --- COUNTDOWN SEARCH ---
         const TARGET_TS = <?= $search_target_ts ?>;
         const SERVER_NOW = <?= time() * 1000 ?>;
         const OFFSET = new Date().getTime() - SERVER_NOW;
@@ -400,21 +516,32 @@ $bg_search_color = $resultados['hay_pico'] ? '#fff5f5' : '#f0fff4';
 
 <?php else: ?>
 
-    <div id="install-wrapper">
-        <div id="android-prompt" class="install-toast" style="display:none">
-            <div style="display:flex; align-items:center;">
-                <span style="font-size:1.5em; margin-right:10px;">📲</span>
-                <div><div style="font-weight:bold; font-size:0.9em;">Instalar App</div><div style="font-size:0.75em; opacity:0.8;">Acceso rápido</div></div>
-            </div>
-            <div style="display:flex; align-items:center;">
-                <button id="btn-install-action" class="btn-install-action">INSTALAR</button> <button id="btn-close-install" class="btn-close-install">✕</button>
-            </div>
+    <div class="floating-share-container">
+        <div class="share-options" id="shareOptions">
+            <a href="#" class="share-btn whatsapp" id="share-wa" target="_blank" aria-label="Compartir en WhatsApp">
+                 <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24"><path d="M12.031 6.172c-3.181 0-5.767 2.586-5.768 5.766-.001 1.298.38 2.27 1.019 3.287l-.582 2.128 2.182-.573c.976.58 2.023.972 3.152.972 3.182 0 5.768-2.586 5.769-5.766.001-3.18-2.585-5.766-5.769-5.766zm9.969 5.766c0 5.504-4.478 9.982-9.982 9.982a9.92 9.92 0 0 1-4.703-1.185l-5.316 1.396 1.42-5.176a9.92 9.92 0 0 1-1.326-4.966C2.045 6.517 6.523 2.04 12.027 2.04s9.982 4.478 9.982 9.982h-.009z"/></svg>
+            </a>
+            <a href="#" class="share-btn facebook" id="share-fb" target="_blank" aria-label="Compartir en Facebook">
+                 <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24"><path d="M9.101 23.691v-7.98H6.627v-3.667h2.474v-1.58c0-4.085 1.848-5.978 5.858-5.978.401 0 .955.042 1.468.103a8.68 8.68 0 0 1 1.141.195v3.325a8.623 8.623 0 0 0-.653-.036c-2.048 0-2.732 1.35-2.732 3.075v1.272h3.662l-.615 3.667h-3.047v7.98H9.101z"/></svg>
+            </a>
+            <a href="#" class="share-btn xcom" id="share-x" target="_blank" aria-label="Compartir en X">
+                 <svg viewBox="0 0 24 24" fill="currentColor" width="20" height="20"><path d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.638 7.584H.474l8.6-9.83L0 1.154h7.594l5.243 6.932ZM17.61 20.644h2.039L6.486 3.24H4.298Z"/></svg>
+            </a>
         </div>
-        <div id="ios-prompt" class="install-toast" style="display:none; flex-direction:column; text-align:center;">
-            <div style="margin-bottom:5px;">📲 <strong>Instalar en iPhone:</strong></div>
-            <div style="font-size:0.85em;">Toca <strong>Compartir</strong> y elige <strong>"Agregar a Inicio"</strong>.</div>
-            <button id="btn-close-ios" class="btn-close-install" style="margin-top:10px;">Cerrar ✕</button>
-        </div>
+        <button class="main-fab-btn" id="toggleShare" aria-label="Compartir">
+             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="28" height="28"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
+        </button>
+    </div>
+
+    <button id="btn-pwa-install" class="pwa-install-fab" style="display:none;">
+        📲 Instalar App
+        <span class="close-pwa" id="closePwaBtn">✕</span>
+    </button>
+    
+    <div id="ios-prompt" class="install-toast" style="display:none; position:fixed; bottom:20px; left:20px; right:20px; z-index:10000; flex-direction:column; text-align:center;">
+        <div style="margin-bottom:5px;">📲 <strong>Instalar en iPhone:</strong></div>
+        <div style="font-size:0.85em;">Toca <strong>Compartir</strong> y elige <strong>"Agregar a Inicio"</strong>.</div>
+        <button id="btn-close-ios" class="btn-close-install" style="margin-top:10px;">Cerrar ✕</button>
     </div>
 
    <header class="app-header">
@@ -623,7 +750,8 @@ $bg_search_color = $resultados['hay_pico'] ? '#fff5f5' : '#f0fff4';
             if(NEXT_EVENT_TS === 0) return;
             const now = new Date().getTime() - CLIENT_OFFSET;
             const diff = NEXT_EVENT_TS - now;
-            if (diff < 0) { setTimeout(() => location.reload(), 2000); return; }
+            if (diff < 0) { setTimeout(() => location.reload(), 2000); return;
+            }
             let h = Math.floor(diff / (1000 * 60 * 60));
             let m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
             let s = Math.floor((diff % (1000 * 60)) / 1000);
@@ -654,33 +782,96 @@ $bg_search_color = $resultados['hay_pico'] ? '#fff5f5' : '#f0fff4';
             selC.addEventListener('change', upd);
             upd();
         }
-        document.addEventListener('DOMContentLoaded', () => { initFormulario(); initPWA(); });
-        let deferredPrompt;
-        function initPWA() {
-            const w = document.getElementById('install-wrapper');
-            const ap = document.getElementById('android-prompt');
-            const ip = document.getElementById('ios-prompt');
-            const btn = document.getElementById('btn-install-action');
-            const ca = document.getElementById('btn-close-install');
-            const ci = document.getElementById('btn-close-ios');
-            const isIos = /iphone|ipad|ipod/.test(window.navigator.userAgent.toLowerCase());
-            const isInStandaloneMode = ('standalone' in window.navigator) && (window.navigator.standalone);
-            if(!w) return;
-            window.addEventListener('beforeinstallprompt', (e) => {
-                e.preventDefault(); deferredPrompt = e; w.style.display = 'flex'; ap.style.display = 'flex';
-                btn.addEventListener('click', () => { ap.style.display = 'none'; deferredPrompt.prompt(); });
-                ca.addEventListener('click', () => { w.style.display = 'none'; });
-            });
-            if (isIos && !isInStandaloneMode) {
-                w.style.display = 'flex'; ip.style.display = 'flex';
-                ci.addEventListener('click', () => { w.style.display = 'none'; });
-            }
-        }
+
+        // --- INICIALIZACIÓN COMPARTIDA Y PWA ---
+        document.addEventListener('DOMContentLoaded', () => { 
+            initFormulario(); 
+            initShareAndPWA(); 
+        });
+
         function toggleCalendario() {
             const g = document.getElementById('calendario-grid');
             g.style.display = (g.style.display==='none') ? 'grid' : 'none';
         }
+
+        function initShareAndPWA() {
+            // --- WIDGET COMPARTIR ---
+            const pageTitle = encodeURIComponent(document.title);
+            const pageUrl = encodeURIComponent(window.location.href);
+
+            document.getElementById('share-wa').href = `https://api.whatsapp.com/send?text=${pageTitle} ${pageUrl}`;
+            document.getElementById('share-fb').href = `https://www.facebook.com/sharer/sharer.php?u=${pageUrl}`;
+            document.getElementById('share-x').href = `https://twitter.com/intent/tweet?text=${pageTitle}&url=${pageUrl}`;
+
+            document.getElementById('toggleShare').addEventListener('click', function() {
+                document.getElementById('shareOptions').classList.toggle('active');
+                this.classList.toggle('active');
+            });
+
+            // --- PWA LOGICA ---
+            let deferredPrompt;
+            const btnInstall = document.getElementById('btn-pwa-install');
+            const btnClosePwa = document.getElementById('closePwaBtn');
+            const iosPrompt = document.getElementById('ios-prompt');
+            const btnCloseIos = document.getElementById('btn-close-ios');
+
+            btnClosePwa.addEventListener('click', (e) => {
+                e.stopPropagation();
+                btnInstall.style.display = 'none';
+            });
+            btnCloseIos.addEventListener('click', () => { iosPrompt.style.display = 'none'; });
+
+            // Android
+            window.addEventListener('beforeinstallprompt', (e) => {
+                e.preventDefault();
+                deferredPrompt = e;
+                btnInstall.style.display = 'flex'; // Mostrar botón flotante
+                
+                btnInstall.addEventListener('click', (ev) => {
+                    if(ev.target !== btnClosePwa) {
+                        btnInstall.style.display = 'none';
+                        deferredPrompt.prompt();
+                        deferredPrompt.userChoice.then((choiceResult) => {
+                            deferredPrompt = null;
+                        });
+                    }
+                });
+            });
+
+            // iOS
+            const isIos = /iphone|ipad|ipod/.test(window.navigator.userAgent.toLowerCase());
+            const isInStandaloneMode = ('standalone' in window.navigator) && (window.navigator.standalone);
+
+            if (isIos && !isInStandaloneMode) {
+                btnInstall.style.display = 'flex';
+                btnInstall.addEventListener('click', (ev) => {
+                     if(ev.target !== btnClosePwa) {
+                         iosPrompt.style.display = 'flex';
+                     }
+                });
+            }
+        }
+        
+        // --- REGISTRO DEL SERVICE WORKER (IMPORTANTE PARA INSTALAR APP) ---
+        if ('serviceWorker' in navigator) {
+          window.addEventListener('load', function() {
+            navigator.serviceWorker.register('/sw.js').then(function(registration) {
+              console.log('ServiceWorker registration successful with scope: ', registration.scope);
+            }, function(err) {
+              console.log('ServiceWorker registration failed: ', err);
+            });
+          });
+        }
+        
+        // --- TRACKING DE INSTALACIÓN (GA4) ---
+        window.addEventListener('appinstalled', (evt) => {
+            console.log('App instalada con éxito');
+            gtag('event', 'pwa_install', {
+                'event_category': 'Engagement',
+                'event_label': 'Install Success'
+            });
+        });
     </script>
 <?php endif; ?>
 </body>
-</html>
+</html>	
